@@ -1,5 +1,7 @@
 # klar
 
+**Live: [klar-de.vercel.app](https://klar-de.vercel.app)**
+
 Read German at your level. Click any word for an instant translation, listen with native German TTS.
 
 A single-page app for casual German reading practice — generates fresh A1–C1 texts on demand, hover-free click-to-translate vocabulary, native German voices via Inworld TTS, real-life topics anchored in lived German culture (Anmeldung, Späti, U-Bahn delays, WG drama).
