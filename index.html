@@ -68,37 +68,91 @@
         </button>
       </div>
 
-      <div class="settings-row">
-        <span class="settings-row__label">Level</span>
-        <div class="dropdown" id="dd-level"></div>
-      </div>
-      <div class="settings-row">
-        <span class="settings-row__label">Length</span>
-        <div class="dropdown" id="dd-length"></div>
-      </div>
-      <div class="settings-row">
-        <span class="settings-row__label">Mode</span>
-        <div class="dropdown" id="dd-mode"></div>
-      </div>
-      <div class="settings-row">
-        <span class="settings-row__label">Register</span>
-        <div class="dropdown" id="dd-register"></div>
-      </div>
-      <div class="settings-row">
-        <span class="settings-row__label">Reading room</span>
-        <div class="room-toggle" role="radiogroup" aria-label="Reading room theme">
-          <button type="button" data-room="default" aria-pressed="true">Default</button>
-          <button type="button" data-room="cafe" aria-pressed="false">Café</button>
-          <button type="button" data-room="library" aria-pressed="false">Library</button>
-          <button type="button" data-room="train" aria-pressed="false">Train</button>
+      <!-- Family / profiles ============================================== -->
+      <section class="settings-section">
+        <header class="settings-section__head">
+          <h3 class="settings-section__title">Family</h3>
+          <p class="settings-section__hint">Each member has their own level, saved words, and streak.</p>
+        </header>
+        <div class="profile-switcher" id="profile-switcher" role="radiogroup" aria-label="Select profile"></div>
+      </section>
+
+      <!-- Active profile — personal context for the AI ================== -->
+      <section class="settings-section">
+        <header class="settings-section__head">
+          <h3 class="settings-section__title">About <span id="profile-about-name">you</span></h3>
+          <p class="settings-section__hint">The more honest you are, the more your texts will actually feel like your life.</p>
+        </header>
+        <div class="profile-form">
+          <label class="profile-field">
+            <span class="profile-field__label">Name</span>
+            <input class="profile-field__input" type="text" data-profile-field="name" placeholder="What should we call you?" autocomplete="off" />
+          </label>
+          <label class="profile-field">
+            <span class="profile-field__label">Age</span>
+            <input class="profile-field__input" type="text" data-profile-field="age" inputmode="numeric" placeholder="e.g. 15, 32, 67" autocomplete="off" />
+          </label>
+          <label class="profile-field">
+            <span class="profile-field__label">Occupation / role</span>
+            <input class="profile-field__input" type="text" data-profile-field="occupation" placeholder="e.g. student, software engineer, retired, parent at home" autocomplete="off" />
+          </label>
+          <label class="profile-field">
+            <span class="profile-field__label">Hobbies & interests</span>
+            <input class="profile-field__input" type="text" data-profile-field="hobbies" placeholder="e.g. hiking, anime, gaming, jazz, cooking" autocomplete="off" />
+          </label>
+          <label class="profile-field">
+            <span class="profile-field__label">Where you live / are going</span>
+            <input class="profile-field__input" type="text" data-profile-field="location" placeholder="e.g. Berlin, moving to Vienna in autumn" autocomplete="off" />
+          </label>
+          <label class="profile-field">
+            <span class="profile-field__label">Why you're learning German</span>
+            <input class="profile-field__input" type="text" data-profile-field="goals" placeholder="e.g. work, talking to my partner's family, exam in spring" autocomplete="off" />
+          </label>
+          <div class="profile-field">
+            <span class="profile-field__label">Want to practice</span>
+            <div class="weak-area-grid" id="weak-area-grid"></div>
+          </div>
+          <button type="button" class="profile-form__delete" id="profile-delete" hidden>Remove this profile</button>
         </div>
-        <p class="settings-row__hint">Each room shifts color, warmth, and feel — the words stay the same.</p>
-      </div>
-      <div class="settings-row">
-        <span class="settings-row__label">Voice (German)</span>
-        <div class="dropdown" id="dd-voice"></div>
-        <p class="settings-row__hint">All voices speak German via Inworld's multilingual model — pick whoever sounds most natural to you.</p>
-      </div>
+      </section>
+
+      <!-- Reading preferences =========================================== -->
+      <section class="settings-section">
+        <header class="settings-section__head">
+          <h3 class="settings-section__title">Reading</h3>
+        </header>
+        <div class="settings-row">
+          <span class="settings-row__label">Level</span>
+          <div class="dropdown" id="dd-level"></div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row__label">Length</span>
+          <div class="dropdown" id="dd-length"></div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row__label">Mode</span>
+          <div class="dropdown" id="dd-mode"></div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row__label">Register</span>
+          <div class="dropdown" id="dd-register"></div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row__label">Reading room</span>
+          <div class="room-toggle" role="radiogroup" aria-label="Reading room theme">
+            <button type="button" data-room="default" aria-pressed="true">Default</button>
+            <button type="button" data-room="cafe" aria-pressed="false">Café</button>
+            <button type="button" data-room="library" aria-pressed="false">Library</button>
+            <button type="button" data-room="train" aria-pressed="false">Train</button>
+          </div>
+          <p class="settings-row__hint">Each room shifts color, warmth, and feel — the words stay the same.</p>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row__label">Voice (German)</span>
+          <div class="dropdown" id="dd-voice"></div>
+          <p class="settings-row__hint">All voices speak German via Inworld's multilingual model — pick whoever sounds most natural to you.</p>
+        </div>
+      </section>
     </div>
   </div>
 

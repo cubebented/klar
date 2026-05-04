@@ -6,11 +6,14 @@
       const MODEL = 'deepseek-chat';
       const STORAGE_KEY = 'deutschify:count';
       const STATS_KEY = 'deutschify:stats';
+      const PROFILES_KEY = 'deutschify:profiles';
+      const ACTIVE_PROFILE_KEY = 'deutschify:active-profile';
 
       const MODE_LABELS = {
         daily: 'Daily Talk',
         school: 'School question',
         story: 'Short story',
+        chat: 'Chat back',
       };
 
       const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1'];
@@ -74,7 +77,23 @@
         },
       };
 
-      const MODES = ['daily', 'school', 'story'];
+      const MODES = ['daily', 'school', 'story', 'chat'];
+
+      // Available "weak area" tags the user can pick in their profile.
+      // Used to subtly bias generation toward grammar they want to practice.
+      const WEAK_AREAS = [
+        { id: 'cases',        label: 'Cases (Akk/Dat/Gen)' },
+        { id: 'verbs',        label: 'Verb conjugation' },
+        { id: 'word-order',   label: 'Word order' },
+        { id: 'separable',    label: 'Separable verbs' },
+        { id: 'prepositions', label: 'Prepositions' },
+        { id: 'articles',     label: 'Articles (der/die/das)' },
+        { id: 'modals',       label: 'Modal verbs' },
+        { id: 'past',         label: 'Past tenses' },
+        { id: 'subjunctive',  label: 'Konjunktiv II' },
+        { id: 'vocab',        label: 'Vocabulary' },
+        { id: 'listening',    label: 'Listening comprehension' },
+      ];
 
       const state = {
         mode: 'daily',
@@ -109,6 +128,140 @@
       };
 
       loadStats();
+      initProfiles();
+
+      // ─────────────────────── PROFILES (family) ─────────────────────────
+      // Each profile is its own learner: own level, saved words, daily streak,
+      // PLUS personal context (age, hobbies, goals) that the AI uses to make
+      // generated content actually relevant to that person.
+      function generateProfileId() {
+        return 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      }
+      function deepClone(o) { try { return JSON.parse(JSON.stringify(o)); } catch (_) { return o; } }
+
+      function makeBlankProfile(name) {
+        return {
+          id: generateProfileId(),
+          name: name || 'New member',
+          age: '', occupation: '', hobbies: '', location: '', goals: '', weakAreas: [],
+          level: 'A2', length: 'medium', register: 'casual', mode: 'daily', voiceId: DEFAULT_VOICE,
+          totalTexts: 0, daily: {}, streakCurrent: 0, streakLastDate: null,
+          levelXp: { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0 },
+          levelPrestige: { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0 },
+          hoverWords: {}, savedWords: {}, feedback: { sentence: '', generatedAt: 0 },
+          createdAt: Date.now(),
+        };
+      }
+
+      function snapshotStateAsProfile(id, name) {
+        const blank = makeBlankProfile(name);
+        return Object.assign(blank, {
+          id, name: name || 'You',
+          level: state.level, length: state.length, register: state.register,
+          mode: state.mode, voiceId: state.voiceId,
+          totalTexts: state.totalTexts || 0,
+          daily: deepClone(state.daily || {}),
+          streakCurrent: state.streakCurrent || 0,
+          streakLastDate: state.streakLastDate || null,
+          levelXp: deepClone(state.levelXp), levelPrestige: deepClone(state.levelPrestige),
+          hoverWords: deepClone(state.hoverWords || {}),
+          savedWords: deepClone(state.savedWords || {}),
+          feedback: deepClone(state.feedback || { sentence: '', generatedAt: 0 }),
+        });
+      }
+
+      function applyProfileToState(p) {
+        if (!p) return;
+        state.level = p.level || 'A2';
+        state.length = p.length || 'medium';
+        state.register = p.register || 'casual';
+        state.mode = p.mode || 'daily';
+        state.voiceId = p.voiceId || DEFAULT_VOICE;
+        state.totalTexts = p.totalTexts || 0;
+        state.daily = deepClone(p.daily || {});
+        state.streakCurrent = p.streakCurrent || 0;
+        state.streakLastDate = p.streakLastDate || null;
+        state.levelXp = deepClone(p.levelXp || { A1:0,A2:0,B1:0,B2:0,C1:0 });
+        state.levelPrestige = deepClone(p.levelPrestige || { A1:0,A2:0,B1:0,B2:0,C1:0 });
+        state.hoverWords = deepClone(p.hoverWords || {});
+        state.savedWords = deepClone(p.savedWords || {});
+        state.feedback = deepClone(p.feedback || { sentence: '', generatedAt: 0 });
+      }
+
+      function syncStateToActiveProfile() {
+        const p = state.profiles && state.profiles[state.activeProfileId];
+        if (!p) return;
+        Object.assign(p, {
+          level: state.level, length: state.length, register: state.register,
+          mode: state.mode, voiceId: state.voiceId,
+          totalTexts: state.totalTexts,
+          daily: state.daily,
+          streakCurrent: state.streakCurrent, streakLastDate: state.streakLastDate,
+          levelXp: state.levelXp, levelPrestige: state.levelPrestige,
+          hoverWords: state.hoverWords, savedWords: state.savedWords,
+          feedback: state.feedback,
+        });
+      }
+
+      function persistProfiles() {
+        syncStateToActiveProfile();
+        safeStore.set(PROFILES_KEY, JSON.stringify(state.profiles));
+        safeStore.set(ACTIVE_PROFILE_KEY, state.activeProfileId);
+      }
+
+      function getActiveProfile() {
+        return (state.profiles || {})[state.activeProfileId] || null;
+      }
+
+      function initProfiles() {
+        let profiles = null;
+        try {
+          const raw = safeStore.get(PROFILES_KEY);
+          if (raw) profiles = JSON.parse(raw);
+        } catch (_) {}
+
+        state.profiles = profiles && typeof profiles === 'object' ? profiles : {};
+        const ids = Object.keys(state.profiles);
+
+        if (ids.length === 0) {
+          // First-run / migration: snapshot anything loaded from old STATS_KEY
+          const seed = snapshotStateAsProfile(generateProfileId(), 'You');
+          state.profiles[seed.id] = seed;
+          state.activeProfileId = seed.id;
+          persistProfiles();
+        } else {
+          const savedActive = safeStore.get(ACTIVE_PROFILE_KEY);
+          state.activeProfileId = state.profiles[savedActive] ? savedActive : ids[0];
+          applyProfileToState(state.profiles[state.activeProfileId]);
+        }
+      }
+
+      function switchProfile(id) {
+        if (!state.profiles[id] || id === state.activeProfileId) return;
+        persistProfiles();                            // commit current state to current profile
+        state.activeProfileId = id;
+        applyProfileToState(state.profiles[id]);
+        safeStore.set(ACTIVE_PROFILE_KEY, id);
+        if (typeof onActiveProfileChanged === 'function') onActiveProfileChanged();
+      }
+
+      function createProfileWithName(name) {
+        const p = makeBlankProfile(name);
+        state.profiles[p.id] = p;
+        persistProfiles();
+        return p.id;
+      }
+
+      function deleteProfile(id) {
+        if (Object.keys(state.profiles).length <= 1) return; // can't delete last
+        delete state.profiles[id];
+        if (state.activeProfileId === id) {
+          state.activeProfileId = Object.keys(state.profiles)[0];
+          applyProfileToState(state.profiles[state.activeProfileId]);
+          if (typeof onActiveProfileChanged === 'function') onActiveProfileChanged();
+        }
+        persistProfiles();
+      }
 
       function loadStats() {
         try {
@@ -157,6 +310,7 @@
       }
 
       function saveStats() {
+        // Legacy single-profile blob (kept for backwards-compat with older versions)
         safeStore.set(STATS_KEY, JSON.stringify({
           totalTexts: state.totalTexts,
           daily: state.daily,
@@ -168,6 +322,8 @@
           savedWords: state.savedWords,
           feedback: state.feedback,
         }));
+        // Also flush to the active profile so per-member data persists
+        if (typeof persistProfiles === 'function' && state.profiles) persistProfiles();
       }
 
       function todayStr() {
@@ -700,7 +856,11 @@
       const settingsBackdrop = $('#settings-backdrop');
       const settingsClose = $('#settings-close');
 
-      function openSettings() { settingsModal.hidden = false; }
+      function openSettings() {
+        settingsModal.hidden = false;
+        renderProfileSwitcher();
+        fillProfileForm();
+      }
       function closeSettings() { settingsModal.hidden = true; }
       settingsBtn.addEventListener('click', openSettings);
       settingsClose.addEventListener('click', closeSettings);
@@ -708,6 +868,131 @@
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
       });
+
+      // ─────────────── PROFILE UI (family) ─────────────────
+      const profileSwitcherEl = $('#profile-switcher');
+      const profileAboutNameEl = $('#profile-about-name');
+      const profileDeleteBtn = $('#profile-delete');
+      const weakAreaGridEl = $('#weak-area-grid');
+
+      // Render the chip list of profiles + an "Add member" chip
+      function renderProfileSwitcher() {
+        if (!profileSwitcherEl) return;
+        const ids = Object.keys(state.profiles || {});
+        const html = ids.map((id) => {
+          const p = state.profiles[id];
+          const active = id === state.activeProfileId;
+          const display = (p.name || 'Unnamed').trim() || 'Unnamed';
+          return `<button type="button" class="profile-chip" data-profile-id="${escapeAttr(id)}" aria-pressed="${active}">` +
+                 `<span class="profile-chip__avatar"></span>${escapeHtml(display)}` +
+                 `</button>`;
+        }).join('') + `<button type="button" class="profile-chip profile-chip--add" id="profile-add">+ Add member</button>`;
+        profileSwitcherEl.innerHTML = html;
+        profileDeleteBtn.hidden = ids.length <= 1;
+      }
+
+      // Render the weak-area multi-select (uses WEAK_AREAS const)
+      function renderWeakAreaGrid() {
+        if (!weakAreaGridEl) return;
+        const p = getActiveProfile();
+        const selected = new Set((p && p.weakAreas) || []);
+        weakAreaGridEl.innerHTML = WEAK_AREAS.map((w) => {
+          const on = selected.has(w.id);
+          return `<button type="button" class="weak-area-chip" data-weak-area="${escapeAttr(w.id)}" aria-pressed="${on}">${escapeHtml(w.label)}</button>`;
+        }).join('');
+      }
+
+      // Fill the form fields with the active profile's saved values
+      function fillProfileForm() {
+        const p = getActiveProfile();
+        if (!p) return;
+        if (profileAboutNameEl) {
+          profileAboutNameEl.textContent = (p.name && p.name.trim()) ? p.name.trim() : 'you';
+        }
+        $$('[data-profile-field]').forEach((input) => {
+          const field = input.dataset.profileField;
+          input.value = (p[field] != null) ? String(p[field]) : '';
+        });
+        renderWeakAreaGrid();
+      }
+
+      // Wire up form inputs — every keystroke saves into the active profile
+      $$('[data-profile-field]').forEach((input) => {
+        input.addEventListener('input', () => {
+          const p = getActiveProfile();
+          if (!p) return;
+          const field = input.dataset.profileField;
+          p[field] = input.value;
+          if (field === 'name' && profileAboutNameEl) {
+            profileAboutNameEl.textContent = p.name.trim() || 'you';
+          }
+          // Update the chip label too (if name changed)
+          if (field === 'name') renderProfileSwitcher();
+          persistProfiles();
+        });
+      });
+
+      // Profile switcher click delegation
+      profileSwitcherEl.addEventListener('click', (e) => {
+        const chip = e.target.closest('.profile-chip');
+        if (!chip) return;
+        if (chip.id === 'profile-add') {
+          const name = (window.prompt('Name for the new family member?', '') || '').trim();
+          if (!name) return;
+          const newId = createProfileWithName(name);
+          switchProfile(newId);
+          renderProfileSwitcher();
+          fillProfileForm();
+          return;
+        }
+        const id = chip.dataset.profileId;
+        if (id) {
+          switchProfile(id);
+          renderProfileSwitcher();
+          fillProfileForm();
+        }
+      });
+
+      // Weak area chip toggling
+      weakAreaGridEl.addEventListener('click', (e) => {
+        const chip = e.target.closest('.weak-area-chip');
+        if (!chip) return;
+        const id = chip.dataset.weakArea;
+        const p = getActiveProfile();
+        if (!p) return;
+        p.weakAreas = p.weakAreas || [];
+        const idx = p.weakAreas.indexOf(id);
+        if (idx >= 0) p.weakAreas.splice(idx, 1);
+        else p.weakAreas.push(id);
+        chip.setAttribute('aria-pressed', String(idx < 0));
+        persistProfiles();
+      });
+
+      // Delete profile button
+      profileDeleteBtn.addEventListener('click', () => {
+        if (Object.keys(state.profiles).length <= 1) return;
+        const p = getActiveProfile();
+        const name = (p && p.name) ? p.name : 'this profile';
+        if (!window.confirm(`Remove ${name}? Their saved words and progress will be lost.`)) return;
+        deleteProfile(state.activeProfileId);
+        renderProfileSwitcher();
+        fillProfileForm();
+      });
+
+      // Called when active profile changes — pulls all per-profile state into the UI
+      function onActiveProfileChanged() {
+        // Re-sync UI (dropdowns, dropdown indicators, stats panel, etc.)
+        if (typeof syncDropdownsFromState === 'function') syncDropdownsFromState();
+        if (typeof syncPressed === 'function') {
+          syncPressed('mode', state.mode);
+          syncPressed('level', state.level);
+          syncPressed('length', state.length);
+          syncPressed('register', state.register);
+        }
+        if (typeof renderStats === 'function') renderStats();
+        if (typeof updateHeadIfIdle === 'function') updateHeadIfIdle();
+        if (typeof updateSublevelPillIfIdle === 'function') updateSublevelPillIfIdle();
+      }
 
       // Spacebar toggles play/pause from anywhere in the reader (not in inputs / settings)
       document.addEventListener('keydown', (e) => {
@@ -892,6 +1177,7 @@
           syncPressed('level', v);
           updateHeadIfIdle();
           updateSublevelPillIfIdle();
+          persistProfiles();
         });
 
       const ddLength = makeDropdown($('#dd-length'),
@@ -901,6 +1187,7 @@
           state.length = v;
           safeStore.set('deutschify:length', v);
           syncPressed('length', v);
+          persistProfiles();
         });
 
       const ddMode = makeDropdown($('#dd-mode'),
@@ -911,6 +1198,7 @@
           state.mode = v;
           syncPressed('mode', v);
           updateHeadIfIdle();
+          persistProfiles();
         });
 
       const ddRegister = makeDropdown($('#dd-register'),
@@ -920,6 +1208,7 @@
           state.register = v;
           safeStore.set('deutschify:register', v);
           syncPressed('register', v);
+          persistProfiles();
         });
 
       function buildVoiceDropdown() {
@@ -930,6 +1219,7 @@
             state.voiceId = v;
             safeStore.set('deutschify:voice', v);
             stopSpeaking();
+            persistProfiles();
           });
       }
       let ddVoice = buildVoiceDropdown();
@@ -1468,6 +1758,7 @@
         viewRead.classList.remove('reader--empty');
         requestAnimationFrame(updateAllIndicators);
         renderBody(data);
+        maybeRenderChatReply(data);
 
         cardLevel.textContent = state.level;
         const sub = getCurrentSublevel(state.level);
@@ -1486,6 +1777,121 @@
         requestAnimationFrame(() => {
           $('#next')?.focus({ preventScroll: true });
         });
+      }
+
+      // ─────────────── CHAT-BACK MODE ─────────────────
+      // When mode is 'chat', append a textarea + submit button under the
+      // generated opener. On submit, evaluate the user's reply and show a
+      // 1-10 score + one-sentence kind+honest feedback.
+      function maybeRenderChatReply(data) {
+        if (state.mode !== 'chat') return;
+        // Append the reply UI inside cardBody so it scrolls with the message
+        const wrap = document.createElement('div');
+        wrap.className = 'chat-reply';
+        wrap.innerHTML =
+          `<textarea class="chat-reply__textarea" id="chat-reply-input" rows="3"` +
+          ` placeholder="Antworte auf Deutsch — schreib einfach, was du sagen würdest."` +
+          ` autocomplete="off" spellcheck="false"></textarea>` +
+          `<div class="chat-reply__row">` +
+            `<span class="chat-reply__hint">Press ⌘/Ctrl+Enter to send</span>` +
+            `<button type="button" class="chat-reply__submit" id="chat-reply-send">Send reply</button>` +
+          `</div>`;
+        cardBody.appendChild(wrap);
+
+        const ta = $('#chat-reply-input');
+        const btn = $('#chat-reply-send');
+
+        const submit = async () => {
+          const reply = (ta.value || '').trim();
+          if (!reply) return;
+          btn.disabled = true;
+          btn.textContent = 'Checking…';
+          try {
+            const evalResult = await evaluateChatReply(data.text || '', data.textEnglish || '', reply);
+            renderChatEvaluation(wrap, evalResult);
+          } catch (e) {
+            console.error('[Chat] evaluation failed:', e);
+            renderChatEvaluation(wrap, {
+              score: null,
+              feedback: 'Couldn\'t reach the AI to grade your reply — try again in a sec.',
+            });
+          }
+        };
+
+        btn.addEventListener('click', submit);
+        ta.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          }
+        });
+
+        requestAnimationFrame(() => ta.focus({ preventScroll: true }));
+      }
+
+      function renderChatEvaluation(wrap, ev) {
+        const score = (typeof ev.score === 'number') ? Math.max(1, Math.min(10, Math.round(ev.score))) : null;
+        const feedback = ev.feedback || 'No feedback available.';
+        const scoreLabels = ['—', 'tough start', 'getting there', 'okay', 'decent', 'solid', 'good', 'really good', 'great', 'excellent', 'native-level'];
+        const label = score != null ? scoreLabels[score] : '';
+        const evDiv = document.createElement('div');
+        evDiv.className = 'chat-eval';
+        evDiv.innerHTML =
+          `<div class="chat-eval__head">` +
+            (score != null
+              ? `<div><span class="chat-eval__score">${score}</span><span class="chat-eval__score-suffix"> / 10</span></div>`
+              : `<div class="chat-eval__label">Result</div>`) +
+            (label ? `<span class="chat-eval__label">${escapeHtml(label)}</span>` : '') +
+          `</div>` +
+          `<p class="chat-eval__feedback">${escapeHtml(feedback)}</p>`;
+        wrap.appendChild(evDiv);
+      }
+
+      // Send the user's reply to DeepSeek for grading. Returns { score, feedback }.
+      async function evaluateChatReply(openerDe, openerEn, userReply) {
+        const profileBlurb = buildProfileSection() || '';
+        const sys = `You are a kind but honest German language coach. The learner just received a casual German message and replied in German. ` +
+          `Score their reply 1-10 (10 = native-level natural German, 1 = barely intelligible). ` +
+          `Give ONE single-sentence piece of feedback: be encouraging but identify the most useful thing to fix. ` +
+          `Return ONLY a JSON object: {"score": <int 1-10>, "feedback": "<one sentence>"}.`;
+
+        const user = [
+          'Original message (German): ' + openerDe,
+          openerEn ? 'Original message (English): ' + openerEn : '',
+          'Learner level: ' + state.level + ' — ' + (LEVEL_GUIDE[state.level] || ''),
+          'Learner reply (German): ' + userReply,
+          profileBlurb,
+        ].filter(Boolean).join('\n');
+
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 30000);
+        try {
+          const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: MODEL,
+              messages: [
+                { role: 'system', content: sys },
+                { role: 'user', content: user },
+              ],
+              temperature: 0.5,
+              response_format: { type: 'json_object' },
+            }),
+            signal: ctrl.signal,
+          });
+          clearTimeout(timeoutId);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const json = await res.json();
+          const content = json.choices?.[0]?.message?.content || '{}';
+          const parsed = parseJson(content);
+          return {
+            score: typeof parsed.score === 'number' ? parsed.score : null,
+            feedback: typeof parsed.feedback === 'string' ? parsed.feedback : 'No feedback available.',
+          };
+        } finally {
+          clearTimeout(timeoutId);
+        }
       }
 
       function trimTitle(s) {
@@ -1646,6 +2052,8 @@ Other rules:
           'Generate ONE realistic school/uni-context line in German — what a student would actually face: a teacher question in class, a homework prompt, a peer asking for help in the group chat, a study-plan message, a complaint about a Klausur or a Lehrer, a reminder about a Referat. Specific subject (Mathe, Bio, Geschichte, Deutsch, Englisch, Sozialkunde, Physik, Ethik, Sport, Musik) and grade-appropriate. Realistic problem framing — not "what color is the apple". Could also be university register (Vorlesung, Seminar, Hausarbeit, Klausur, ECTS, Prof, Tutor, Mensa, WG-Kasten Bier).',
         story:
           'Generate a short PERSONAL anecdote in German — something that actually happened to the narrator (or a friend / coworker / family member). Past tense (Perfekt for spoken feel). MODERN setting (today, this week, last month — never historical or fairy-tale). The kind of story you tell at dinner: a Bürokratie disaster, a delayed-train odyssey, an awkward date, a missing package adventure, a Hausmeister encounter, a Sunday-shopping crisis, a flatmate problem, a job-interview slip-up, a misread DM, a wrong Bestellung. Specific real names: Späti, Rewe, S-Bahn, Friedrichshain, München, Hofbräuhaus, Karstadt. Specific times. End with a small reaction or punchline ("naja, war halt so", "echt nervig", "wenigstens lustig"), NOT "and so I learned my lesson".',
+        chat:
+          'Generate ONE short conversational opener that a real German friend / family member / coworker / stranger might genuinely say or text — something that INVITES a response from the learner. Could be: a casual question, a small piece of news, a complaint they\'re venting, a plan they\'re proposing, a reaction to something. The learner will type a reply in German next. Keep it ONE message (no A:/B: dialogue), inviting and natural. The text should be a single sentence or two that the learner can answer.',
       };
 
       // Length targets per mode — tuned to feel like a real "short / medium / long" range
@@ -1653,12 +2061,41 @@ Other rules:
         daily:  { short: '1-2 sentences OR a 2-3 line dialogue (~15-25 words total)', medium: '3-5 sentences OR a 4-6 line dialogue (~40-70 words total)', long: '6-8 sentences OR a 7-10 line dialogue (~90-140 words total)' },
         school: { short: '1 sentence (~12-18 words)',                                 medium: '2-3 sentences (~30-45 words)',                              long: '4-5 sentences (~70-90 words)' },
         story:  { short: '3-4 sentences (~50-70 words)',                              medium: '5-7 sentences (~100-140 words)',                            long: '9-12 sentences (~200-260 words)' },
+        chat:   { short: '1 short sentence (~8-12 words)',                            medium: '1-2 sentences (~15-25 words)',                              long: '2-3 sentences (~30-45 words)' },
       };
 
       const REGISTER_HINTS = {
         casual: 'casual — use du/euch, contractions, fillers, texting tone',
         formal: 'formal — use Sie/Ihnen, full forms, polite/professional vocab, no slang',
       };
+
+      // Build a "PERSONAL CONTEXT" block from the active profile so the AI
+      // can pick situations/topics/angles that fit THIS specific learner's life.
+      function buildProfileSection() {
+        const p = getActiveProfile();
+        if (!p) return '';
+        const fields = [];
+        if (p.name)        fields.push('- Name: ' + p.name);
+        if (p.age)         fields.push('- Age: ' + p.age);
+        if (p.occupation)  fields.push('- Occupation/role: ' + p.occupation);
+        if (p.hobbies)     fields.push('- Hobbies & interests: ' + p.hobbies);
+        if (p.location)    fields.push('- Where they live / are going: ' + p.location);
+        if (p.goals)       fields.push('- Why they\'re learning German: ' + p.goals);
+        if (p.weakAreas && p.weakAreas.length) {
+          const labels = p.weakAreas.map((id) => {
+            const w = WEAK_AREAS.find((x) => x.id === id);
+            return w ? w.label : id;
+          }).join(', ');
+          fields.push('- Wants to practice: ' + labels);
+        }
+        if (fields.length === 0) return '';
+        return [
+          '',
+          'PERSONAL CONTEXT — this learner is a real person. Use this to pick a topic / angle / situation that ACTUALLY fits their day-to-day life. Don\'t name them in third person, just write the kind of content they\'d genuinely encounter:',
+          fields.join('\n'),
+          'When their "wants to practice" list above mentions specific grammar, lean into that grammar naturally in the text without making it feel like an exercise.',
+        ].join('\n');
+      }
 
       function buildUserPrompt(mode, level, sub, length, register) {
         const lenHint = (LENGTH_HINTS[mode] && LENGTH_HINTS[mode][length]) || '';
@@ -1684,6 +2121,7 @@ Other rules:
           MODE_INSTRUCTIONS[mode],
           '',
           'Anchor this in a SPECIFIC concrete moment with small real-life stakes. Use real names, real places, real situations a learner would actually encounter today in Germany or Austria. NO textbook-style openings, NO generic topics. Pick a fresh angle different from your last generations.' + savedHint,
+          buildProfileSection(),
         ].filter(Boolean).join('\n');
       }
 
