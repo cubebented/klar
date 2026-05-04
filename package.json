@@ -1,0 +1,13 @@
+{
+  "name": "klar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "klar — read German at your level. Click any word for an instant translation, listen with native German TTS.",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
