@@ -535,8 +535,19 @@
     .settings-modal__backdrop {
       position: absolute;
       inset: 0;
-      background: rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(2px);
+      background: rgba(0, 0, 0, 0.70);
+      /* No backdrop-filter — it forces re-compositing of the entire page
+         every frame and hammers the GPU on most laptops. Solid overlay is
+         cleaner and doesn't lag. */
+    }
+
+    /* While settings (or any modal) is open, drop the expensive backdrop blur
+       on the topbar too — the user can't see what's behind the modal anyway,
+       so paying for a second blur layer is wasted GPU. */
+    body.modal-open .topbar {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      background: var(--color-bg-soft);
     }
     .settings-modal__panel {
       position: relative;
@@ -550,6 +561,10 @@
       border-radius: 14px;
       box-shadow: var(--shadow-raised);
       overflow: hidden;
+      /* Isolate from page-wide reflows — internal updates (tab switch, typing
+         in fields, picking dropdown options) won't trigger layout on the rest
+         of the DOM behind the modal. Big perf win for input-heavy modals. */
+      contain: layout style paint;
     }
     .settings-modal__head {
       flex-shrink: 0;

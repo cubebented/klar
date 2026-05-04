@@ -858,10 +858,14 @@
 
       function openSettings() {
         settingsModal.hidden = false;
+        document.body.classList.add('modal-open');   // disables expensive topbar blur underneath
         renderProfileSwitcher();
         fillProfileForm();
       }
-      function closeSettings() { settingsModal.hidden = true; }
+      function closeSettings() {
+        settingsModal.hidden = true;
+        document.body.classList.remove('modal-open');
+      }
       settingsBtn.addEventListener('click', openSettings);
       settingsClose.addEventListener('click', closeSettings);
       settingsBackdrop.addEventListener('click', closeSettings);
