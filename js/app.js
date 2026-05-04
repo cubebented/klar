@@ -871,9 +871,35 @@
 
       // ─────────────── PROFILE UI (family) ─────────────────
       const profileSwitcherEl = $('#profile-switcher');
-      const profileAboutNameEl = $('#profile-about-name');
       const profileDeleteBtn = $('#profile-delete');
       const weakAreaGridEl = $('#weak-area-grid');
+      const profileHeroAvatar = $('#profile-hero-avatar');
+      const profileHeroSub = $('#profile-hero-sub');
+      const profilePicBtn = $('#profile-pic-btn');
+      const profilePicInput = $('#profile-pic-input');
+
+      // Settings tab switcher
+      const settingsTabs = $$('.settings-tab');
+      const settingsPanes = $$('.settings-pane');
+      settingsTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const which = tab.dataset.tab;
+          settingsTabs.forEach((t) => t.setAttribute('aria-pressed', String(t === tab)));
+          settingsPanes.forEach((p) => { p.hidden = p.dataset.pane !== which; });
+          // Update sliding indicators in the new pane in case any dropdowns are inside
+          requestAnimationFrame(() => { if (typeof updateAllIndicators === 'function') updateAllIndicators(); });
+        });
+      });
+
+      // Build a tiny avatar HTML string (image if profile has one, else initials)
+      function avatarHtml(p, size) {
+        const px = size + 'px';
+        const initial = (p.name || 'U').trim()[0]?.toUpperCase() || 'U';
+        if (p.avatar) {
+          return `<span class="profile-chip__avatar profile-chip__avatar--img" style="width:${px};height:${px};background-image:url(${p.avatar});background-size:cover;background-position:center"></span>`;
+        }
+        return `<span class="profile-chip__avatar" style="width:${px};height:${px};display:inline-flex;align-items:center;justify-content:center;font:600 10px var(--font-display);color:var(--color-text-strong)">${escapeHtml(initial)}</span>`;
+      }
 
       // Render the chip list of profiles + an "Add member" chip
       function renderProfileSwitcher() {
@@ -884,11 +910,33 @@
           const active = id === state.activeProfileId;
           const display = (p.name || 'Unnamed').trim() || 'Unnamed';
           return `<button type="button" class="profile-chip" data-profile-id="${escapeAttr(id)}" aria-pressed="${active}">` +
-                 `<span class="profile-chip__avatar"></span>${escapeHtml(display)}` +
+                 avatarHtml(p, 18) + escapeHtml(display) +
                  `</button>`;
         }).join('') + `<button type="button" class="profile-chip profile-chip--add" id="profile-add">+ Add member</button>`;
         profileSwitcherEl.innerHTML = html;
-        profileDeleteBtn.hidden = ids.length <= 1;
+        if (profileDeleteBtn) profileDeleteBtn.hidden = ids.length <= 1;
+      }
+
+      // Update the large hero avatar + subline message
+      function updateHeroAvatar() {
+        const p = getActiveProfile();
+        if (!p || !profileHeroAvatar) return;
+        if (p.avatar) {
+          profileHeroAvatar.style.backgroundImage = `url(${p.avatar})`;
+          profileHeroAvatar.textContent = '';
+        } else {
+          profileHeroAvatar.style.backgroundImage = '';
+          profileHeroAvatar.textContent = (p.name || 'U').trim()[0]?.toUpperCase() || 'U';
+        }
+        if (profileHeroSub) {
+          const filled = [p.name, p.age, p.occupation, p.hobbies, p.location, p.goals]
+            .filter((x) => x && String(x).trim()).length;
+          profileHeroSub.textContent = filled === 0
+            ? 'Tell me about yourself so I can write content that fits your life.'
+            : filled < 4
+              ? 'Looking good — fill in a couple more for sharper personalisation.'
+              : 'Looking great. Generate a text and you should feel the difference.';
+        }
       }
 
       // Render the weak-area multi-select (uses WEAK_AREAS const)
@@ -906,14 +954,61 @@
       function fillProfileForm() {
         const p = getActiveProfile();
         if (!p) return;
-        if (profileAboutNameEl) {
-          profileAboutNameEl.textContent = (p.name && p.name.trim()) ? p.name.trim() : 'you';
-        }
         $$('[data-profile-field]').forEach((input) => {
           const field = input.dataset.profileField;
           input.value = (p[field] != null) ? String(p[field]) : '';
         });
+        updateHeroAvatar();
         renderWeakAreaGrid();
+      }
+
+      // Profile picture upload — read as data URL, save to profile.avatar
+      if (profilePicBtn && profilePicInput) {
+        profilePicBtn.addEventListener('click', () => profilePicInput.click());
+        profilePicInput.addEventListener('change', () => {
+          const file = profilePicInput.files && profilePicInput.files[0];
+          if (!file) return;
+          if (!/^image\//.test(file.type)) {
+            alert('Please pick an image file.');
+            return;
+          }
+          if (file.size > 4 * 1024 * 1024) {
+            alert('That image is too big — please pick one under 4MB.');
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => {
+            const p = getActiveProfile();
+            if (!p) return;
+            // Downscale to a reasonable size to keep localStorage small
+            downscaleImage(String(reader.result), 256, (smallDataUrl) => {
+              p.avatar = smallDataUrl;
+              persistProfiles();
+              updateHeroAvatar();
+              renderProfileSwitcher();
+            });
+          };
+          reader.readAsDataURL(file);
+          // reset value so re-selecting same file fires change again
+          profilePicInput.value = '';
+        });
+      }
+
+      // Downscale via canvas — keeps localStorage well under 5MB even with many profiles
+      function downscaleImage(dataUrl, maxDim, cb) {
+        const img = new Image();
+        img.onload = () => {
+          const ratio = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const w = Math.round(img.width * ratio);
+          const h = Math.round(img.height * ratio);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          cb(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = () => cb(dataUrl);
+        img.src = dataUrl;
       }
 
       // Wire up form inputs — every keystroke saves into the active profile
@@ -923,11 +1018,8 @@
           if (!p) return;
           const field = input.dataset.profileField;
           p[field] = input.value;
-          if (field === 'name' && profileAboutNameEl) {
-            profileAboutNameEl.textContent = p.name.trim() || 'you';
-          }
-          // Update the chip label too (if name changed)
           if (field === 'name') renderProfileSwitcher();
+          updateHeroAvatar();              // refresh initial + subline message
           persistProfiles();
         });
       });
@@ -1785,15 +1877,24 @@
       // 1-10 score + one-sentence kind+honest feedback.
       function maybeRenderChatReply(data) {
         if (state.mode !== 'chat') return;
-        // Append the reply UI inside cardBody so it scrolls with the message
+        const p = getActiveProfile() || { name: 'You', avatar: null };
+        const initial = (p.name || 'U').trim()[0]?.toUpperCase() || 'U';
+        const avatarStyle = p.avatar
+          ? `background-image:url(${p.avatar});background-size:cover;background-position:center`
+          : '';
+        const avatarInner = p.avatar ? '' : escapeHtml(initial);
+
         const wrap = document.createElement('div');
         wrap.className = 'chat-reply';
         wrap.innerHTML =
-          `<textarea class="chat-reply__textarea" id="chat-reply-input" rows="3"` +
-          ` placeholder="Antworte auf Deutsch — schreib einfach, was du sagen würdest."` +
-          ` autocomplete="off" spellcheck="false"></textarea>` +
+          `<div class="chat-reply__compose">` +
+            `<div class="chat-reply__avatar" style="${avatarStyle}">${avatarInner}</div>` +
+            `<textarea class="chat-reply__textarea" id="chat-reply-input" rows="3"` +
+              ` placeholder="Antworte auf Deutsch — schreib einfach, was du sagen würdest."` +
+              ` autocomplete="off" spellcheck="false"></textarea>` +
+          `</div>` +
           `<div class="chat-reply__row">` +
-            `<span class="chat-reply__hint">Press ⌘/Ctrl+Enter to send</span>` +
+            `<span class="chat-reply__hint">⌘/Ctrl+Enter to send</span>` +
             `<button type="button" class="chat-reply__submit" id="chat-reply-send">Send reply</button>` +
           `</div>`;
         cardBody.appendChild(wrap);
