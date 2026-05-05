@@ -1725,6 +1725,37 @@
 
       function clearActiveWords() {
         $$('.word--active').forEach((w) => w.classList.remove('word--active'));
+
+      // Clamp a word's tooltip bubble within the visible viewport.
+      // Called after word--active is set so the tip is rendered and measurable.
+      function clampWordTip(wordEl) {
+        const tip = wordEl.querySelector('.word__tip');
+        if (!tip) return;
+        tip.style.cssText = '';
+        requestAnimationFrame(() => {
+          const r   = tip.getBoundingClientRect();
+          const mrg = 8;
+          const topbarH = parseInt(
+            getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')
+          ) || 56;
+
+          let xShift = 0;
+          if (r.left < mrg) {
+            xShift = mrg - r.left;
+          } else if (r.right > window.innerWidth - mrg) {
+            xShift = -(r.right - (window.innerWidth - mrg));
+          }
+          if (xShift !== 0) {
+            tip.style.transform = `translateX(calc(-50% + ${xShift}px))`;
+          }
+
+          if (r.top < topbarH + mrg) {
+            tip.style.bottom = 'auto';
+            tip.style.top    = 'calc(100% + 8px)';
+          }
+        });
+      }
+
       }
 
       function onWordClick(e) {
@@ -1739,6 +1770,7 @@
         if (wasActive) return; // second click on the same word toggles off
 
         el.classList.add('word--active');
+        clampWordTip(el);  // keep tooltip within viewport on all screen sizes
 
         const wordKey = (el.dataset.word || '').trim().toLowerCase();
 

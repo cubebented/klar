@@ -4619,3 +4619,207 @@
       .dash-grid { grid-template-columns: 1fr; }
       .topbar__brand { display: none; }
     }
+
+    /* ============================================================
+       MOBILE RESPONSIVENESS — comprehensive phone-screen fixes
+       ============================================================ */
+
+    /* Prevent horizontal overflow on all screen sizes */
+    html { overflow-x: hidden; }
+    body { overflow-x: hidden; max-width: 100vw; }
+
+    /* Fix: chat intro tagline had white-space:nowrap which overflows on phones */
+    .chat__intro-tagline {
+      white-space: normal !important;
+      word-break: break-word;
+    }
+
+    /* Word tooltip: constrain width to viewport */
+    .word__tip {
+      max-width: min(300px, calc(100vw - 32px));
+    }
+
+    /* Topbar: reserve space on the right for the two fixed icon buttons
+       (fullscreen at right:12px + 32px wide, gear at right:56px + 32px wide → 88px total).
+       Without this, topbar text can slide under those buttons on small screens. */
+    @media (max-width: 720px) {
+      .topbar { padding-right: 96px; }
+    }
+
+    /* Touch targets: 44 × 44 px minimum for coarse-pointer (finger) devices */
+    @media (pointer: coarse) {
+      .settings-btn,
+      .fullscreen-toggle {
+        width: 40px;
+        height: 40px;
+      }
+      .speak-btn {
+        width: 36px;
+        height: 36px;
+      }
+      .lang-toggle__btn {
+        padding: 8px 12px;
+      }
+      .topbar__view {
+        padding: 8px 12px;
+      }
+      .settings-modal__x {
+        width: 36px;
+        height: 36px;
+      }
+      .welcome__lvl {
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+      .welcome__cta {
+        min-height: 52px;
+      }
+      .btn-primary {
+        min-height: 48px;
+      }
+      /* Slightly larger tap area on word chips */
+      .word {
+        padding: 2px 0;
+      }
+    }
+
+    /* Safe-area insets for notch / home-indicator phones */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      .chat {
+        padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom));
+      }
+      .toast-host {
+        bottom: calc(24px + env(safe-area-inset-bottom));
+        right: calc(16px + env(safe-area-inset-right));
+      }
+      /* Chat sticky input sits just above the home bar */
+      .chat__input {
+        margin-bottom: env(safe-area-inset-bottom);
+      }
+    }
+
+    /* ── Phone breakpoint ≤ 520px ────────────────────────────── */
+    @media (max-width: 520px) {
+
+      /* Reader: tight padding that properly clears the fixed topbar */
+      .reader {
+        padding: calc(var(--topbar-h) + var(--s-5)) var(--s-4) var(--s-8);
+        min-height: 100vh;
+      }
+
+      /* Body text: slightly smaller base, still readable, no horizontal bleed */
+      .body-text {
+        font-size: clamp(15px, 4.8vw, 22px);
+        line-height: 1.65;
+        word-break: break-word;
+        overflow-wrap: break-word;
+      }
+
+      /* Wider chat bubbles on phones */
+      .chat__msg {
+        max-width: 90%;
+        font-size: 15px;
+        padding: 12px 14px;
+        line-height: 1.55;
+      }
+
+      /* Chat intro heading: scale down on tiny screens */
+      .chat__intro-title {
+        font-size: clamp(24px, 7.5vw, 38px);
+      }
+      .chat__intro-tagline {
+        font-size: 12.5px;
+      }
+
+      /* Chat suggestion pills: smaller on mobile */
+      .chat__suggestion {
+        font-size: 12.5px;
+        padding: 8px 14px;
+      }
+
+      /* Settings modal: bottom-sheet style on phones */
+      .settings-modal {
+        align-items: flex-end;
+        padding: 0;
+      }
+      .settings-modal__panel {
+        max-height: 88vh;
+        border-radius: 16px 16px 0 0;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      /* Welcome screen: tighter inner padding */
+      .welcome__inner {
+        padding: var(--s-6) var(--s-4);
+        gap: var(--s-4);
+      }
+      .welcome__lvl {
+        padding: 8px 10px;
+      }
+      .welcome__wordmark {
+        font-size: clamp(36px, 11vw, 54px);
+      }
+
+      /* Generate / Next buttons: full width on mobile */
+      .card__foot .btn-primary {
+        max-width: 100%;
+      }
+
+      /* Progress dashboard: two columns on phones */
+      .dash-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      /* Mastery row: two-column (level + action), progress below */
+      .mastery {
+        grid-template-columns: 1fr auto;
+        gap: var(--s-2);
+      }
+
+      /* Saved-words list: narrower word column */
+      .saved-card__item {
+        grid-template-columns: 1fr 1fr auto;
+        gap: var(--s-2);
+      }
+
+      /* Context menu: reachable width */
+      .ctx-menu {
+        min-width: 160px;
+      }
+
+      /* Word tooltip: show BELOW the word on phones (above risks being hidden
+         behind the fixed topbar; below almost always has room in a reading app) */
+      .word__tip {
+        bottom: auto;
+        top: calc(100% + 8px);
+      }
+      /* Flip the tooltip arrow to point upward */
+      .word__tip::after {
+        top: auto;
+        bottom: 100%;
+        border-top: none;
+        border-bottom: 5px solid var(--color-surface-high);
+      }
+    }
+
+    /* ── Extra-small phones ≤ 360px ──────────────────────────── */
+    @media (max-width: 360px) {
+      .welcome__lvl {
+        padding: 8px 6px;
+        font-size: 10.5px;
+      }
+      .topbar__view {
+        padding: 5px 8px;
+        font-size: 10.5px;
+      }
+      .welcome__inner {
+        padding: var(--s-5) var(--s-3);
+        gap: var(--s-3);
+      }
+      /* Dash grid: single column on 360px so stat cards don't crush */
+      .dash-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
