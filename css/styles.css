@@ -1737,12 +1737,13 @@
     .body-text {
       font-family: var(--font-display);
       font-weight: 300;
-      /* Wide adaptive range — smoothly scales from phone to widescreen */
-      font-size: clamp(17px, 0.7rem + 1.4vw, 28px);
-      line-height: 1.7;
+      /* Tuned for long-form reading — caps at 22px so lines stay around
+         55–70 characters at the widest. */
+      font-size: clamp(17px, 0.85rem + 0.55vw, 21px);
+      line-height: 1.78;
       color: var(--color-text-strong);
-      letter-spacing: -0.01em;
-      max-width: 640px;
+      letter-spacing: -0.005em;
+      max-width: 68ch;
       text-align: left;
       transition: font-size 200ms ease-out;
       /* Prevent drag-selection of the German text — interactions are click-only */
@@ -1760,8 +1761,12 @@
       white-space: nowrap;
     }
 
-    .body-text p { margin: 0 0 var(--s-4); }
+    /* Generous paragraph spacing — long-form needs air between blocks */
+    .body-text p { margin: 0 0 1.45em; }
     .body-text p:last-child { margin-bottom: 0; }
+    /* Subtle indent on the trailing paragraphs gives the page a "page of a
+       book" feel without being twee. First paragraph stays flush. */
+    .body-text > p + p { text-indent: 0; }
 
     /* letter-by-letter cascade entry — "lego drop-in" feel */
     .letter {
@@ -2168,7 +2173,13 @@
     }
 
     /* sentence breathing — extra air between sentences, makes paragraphs less dense */
-    .body-text { word-spacing: 0.02em; }
+    .body-text {
+      word-spacing: 0.04em;
+      hyphens: auto;
+      -webkit-hyphens: auto;
+      hanging-punctuation: first last;
+      text-wrap: pretty;
+    }
 
     /* tooltip arrow / notch — anchors tooltip visually to its word */
     .word__tip::after {
