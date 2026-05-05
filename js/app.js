@@ -873,59 +873,91 @@
         if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
       });
 
-      // ─────────────── JOURNAL UI (per-profile) ─────────────────
-      const journalAvatarEl = $('#journal-avatar');
+      // ───────────────────────────────────────────────────────────────
+      // JOURNAL — AI-conversational profile
+      //
+      // The user chats with a tutor. Each turn, we ask DeepSeek to:
+      //   1. Reply naturally in 1–2 sentences with one warm follow-up
+      //   2. Extract any new profile facts as structured JSON
+      //   3. (after enough info) write a personalised "About you" + plan
+      // The reply renders as a tutor message; the extracted fields merge
+      // into the active profile silently. After ~3 turns we render the
+      // generated cards.
+      // ───────────────────────────────────────────────────────────────
+      const journalAvatarEl        = $('#journal-avatar');
       const journalAvatarInitialEl = $('#journal-avatar-initial');
-      const journalAvatarInput = $('#journal-avatar-input');
-      const journalFamilyEl = $('#journal-family');
-      const journalFootnoteEl = $('#journal-footnote');
+      const journalAvatarInput     = $('#journal-avatar-input');
+      const journalFamilyEl        = $('#journal-family');
+      const journalSummaryEl       = $('#journal-summary');
+      const journalSummaryBodyEl   = $('#journal-summary-body');
+      const journalFactsEl         = $('#journal-facts');
+      const journalSummaryEditEl   = $('#journal-summary-edit');
+      const journalPlanEl          = $('#journal-plan');
+      const journalPlanBodyEl      = $('#journal-plan-body');
+      const journalPlanRefreshEl   = $('#journal-plan-refresh');
+      const journalThreadEl        = $('#journal-thread');
+      const journalSuggestionsEl   = $('#journal-suggestions');
+      const journalFormEl          = $('#journal-form');
+      const journalFieldEl         = $('#journal-field');
+      const journalSendEl          = $('#journal-send');
+      const journalEditorEl        = $('#journal-editor');
+      const journalEditorDoneEl    = $('#journal-editor-done');
+      const journalChatEl          = $('#journal-chat');
+      const journalHeroSubEl       = $('#journal-hero-sub');
 
-      // Migrate legacy weakAreas (was an array of preset IDs) → free-form string.
-      // Runs once per profile per page load — leaves strings alone.
-      (function migrateWeakAreas() {
+      const PROFILE_FIELDS = ['name', 'age', 'occupation', 'hobbies', 'location', 'goals', 'weakAreas'];
+
+      // One-time migration: legacy chip-array weakAreas → free-form string,
+      // and ensure every profile has a chat history container.
+      (function migrateProfile() {
         for (const id of Object.keys(state.profiles || {})) {
           const p = state.profiles[id];
           if (Array.isArray(p.weakAreas)) {
-            const labels = p.weakAreas
+            p.weakAreas = p.weakAreas
               .map((wid) => {
                 const w = (typeof WEAK_AREAS !== 'undefined') ? WEAK_AREAS.find((x) => x.id === wid) : null;
                 return w ? w.label.toLowerCase() : wid;
               })
-              .filter(Boolean);
-            p.weakAreas = labels.join(', ');
+              .filter(Boolean)
+              .join(', ');
           } else if (p.weakAreas == null) {
             p.weakAreas = '';
           }
+          if (!Array.isArray(p.journalHistory)) p.journalHistory = [];
+          if (typeof p.journalSummary !== 'string') p.journalSummary = '';
+          if (typeof p.journalPlan    !== 'string') p.journalPlan    = '';
         }
       })();
 
-      // Update avatar + initial in the journal hero
+      function profileFilledCount(p) {
+        if (!p) return 0;
+        return PROFILE_FIELDS.filter((f) => p[f] && String(p[f]).trim()).length;
+      }
+
       function updateJournalAvatar() {
         const p = getActiveProfile();
         if (!p || !journalAvatarEl) return;
         const initial = (p.name || '').trim()[0]?.toUpperCase() || '';
         if (p.avatar) {
           journalAvatarEl.style.backgroundImage = `url(${p.avatar})`;
-          journalAvatarEl.classList.add('journal__avatar--has-photo');
+          journalAvatarEl.classList.add('j-hero__avatar--has-photo');
           if (journalAvatarInitialEl) journalAvatarInitialEl.textContent = '';
         } else {
           journalAvatarEl.style.backgroundImage = '';
-          journalAvatarEl.classList.remove('journal__avatar--has-photo');
+          journalAvatarEl.classList.remove('j-hero__avatar--has-photo');
           if (journalAvatarInitialEl) journalAvatarInitialEl.textContent = initial || '·';
         }
-        // Footnote nudge based on how filled-in the profile is
-        if (journalFootnoteEl) {
-          const filled = [p.name, p.age, p.occupation, p.hobbies, p.location, p.goals, p.weakAreas]
-            .filter((x) => x && String(x).trim()).length;
-          journalFootnoteEl.textContent = filled === 0
-            ? 'The more honest you are, the more your texts will actually feel like your life.'
+        // Hero sub-line — adapts to how much the tutor knows
+        if (journalHeroSubEl) {
+          const filled = profileFilledCount(p);
+          journalHeroSubEl.textContent = filled === 0
+            ? "Tell your tutor a little about yourself — they'll write your texts around it."
             : filled < 4
-              ? 'Looking good — a couple more lines and the AI really starts to know you.'
-              : 'Looking great. Generate a text and you should feel the difference.';
+              ? `Your tutor is getting to know you. Keep going.`
+              : `Your tutor has a clear picture. Generated texts will reflect this.`;
         }
       }
 
-      // Render the family ribbon — small chips for each member + add/remove.
       function renderJournalFamily() {
         if (!journalFamilyEl) return;
         const ids = Object.keys(state.profiles || {});
@@ -934,18 +966,66 @@
           const active = id === state.activeProfileId;
           const initial = (p.name || '').trim()[0]?.toUpperCase() || '·';
           const av = p.avatar
-            ? `<span class="journal__member-avatar" style="background-image:url(${p.avatar})"></span>`
-            : `<span class="journal__member-avatar journal__member-avatar--initial">${escapeHtml(initial)}</span>`;
-          return `<button type="button" class="journal__member${active ? ' is-active' : ''}" data-profile-id="${escapeAttr(id)}" aria-pressed="${active}">${av}<span class="journal__member-name">${escapeHtml(p.name || 'Unnamed')}</span></button>`;
+            ? `<span class="j-member__av" style="background-image:url(${p.avatar})"></span>`
+            : `<span class="j-member__av">${escapeHtml(initial)}</span>`;
+          return `<button type="button" class="j-member${active ? ' is-active' : ''}" data-profile-id="${escapeAttr(id)}" aria-pressed="${active}">${av}<span class="j-member__name">${escapeHtml(p.name || 'Unnamed')}</span></button>`;
         }).join('');
-        const addBtn = `<button type="button" class="journal__member-add" id="journal-member-add" aria-label="Add family member">+</button>`;
+        const addBtn = `<button type="button" class="j-member-add" id="journal-member-add" aria-label="Add family member">+</button>`;
         const removeBtn = ids.length > 1
-          ? `<button type="button" class="journal__member-remove" id="journal-member-remove" aria-label="Remove this profile">Remove this profile</button>`
+          ? `<button type="button" class="j-member-remove" id="journal-member-remove">Remove</button>`
           : '';
-        journalFamilyEl.innerHTML = `<div class="journal__family-row">${chips}${addBtn}</div>${removeBtn}`;
+        journalFamilyEl.innerHTML = `<div class="j-family__row">${chips}${addBtn}${removeBtn}</div>`;
       }
 
-      // Fill all journal/profile inputs from the active profile's saved values
+      // Render summary + plan cards from saved AI output
+      function renderJournalCards() {
+        const p = getActiveProfile();
+        if (!p) return;
+        const filled = profileFilledCount(p);
+
+        // Summary card
+        if (journalSummaryEl && journalSummaryBodyEl) {
+          if (p.journalSummary && p.journalSummary.trim()) {
+            journalSummaryBodyEl.textContent = p.journalSummary;
+            renderJournalFacts(p);
+            journalSummaryEl.hidden = false;
+          } else {
+            journalSummaryEl.hidden = true;
+          }
+        }
+
+        // Plan card — only after 3+ filled fields, even if no AI plan yet
+        if (journalPlanEl && journalPlanBodyEl) {
+          if (p.journalPlan && p.journalPlan.trim()) {
+            journalPlanBodyEl.textContent = p.journalPlan;
+            journalPlanEl.hidden = false;
+          } else {
+            journalPlanEl.hidden = true;
+          }
+        }
+        // Hide suggestion chips once the user has actually shared anything
+        if (journalSuggestionsEl) {
+          journalSuggestionsEl.hidden = filled > 0 || (p.journalHistory && p.journalHistory.length > 0);
+        }
+      }
+
+      function renderJournalFacts(p) {
+        if (!journalFactsEl) return;
+        const facts = [];
+        const labels = {
+          age: 'AGE', occupation: 'WORK', location: 'WHERE',
+          hobbies: 'INTERESTS', goals: 'GOAL', weakAreas: 'WORKING ON',
+        };
+        for (const f of ['age', 'occupation', 'location', 'hobbies', 'goals', 'weakAreas']) {
+          const v = (p[f] || '').toString().trim();
+          if (!v) continue;
+          const short = v.length > 48 ? v.slice(0, 45).trim() + '…' : v;
+          facts.push(`<li><b>${labels[f]}</b>${escapeHtml(short)}</li>`);
+        }
+        journalFactsEl.innerHTML = facts.join('');
+      }
+
+      // Fill every [data-profile-field] input/textarea (used by the editor)
       function fillProfileForm() {
         const p = getActiveProfile();
         if (!p) return;
@@ -955,9 +1035,66 @@
         });
         updateJournalAvatar();
         renderJournalFamily();
+        renderJournalCards();
+        renderJournalThread();
       }
 
-      // Wire up form inputs — every keystroke persists to the active profile
+      // Render the conversation thread from the active profile's history
+      function renderJournalThread() {
+        if (!journalThreadEl) return;
+        const p = getActiveProfile();
+        if (!p) return;
+        const hist = p.journalHistory || [];
+
+        if (hist.length === 0) {
+          // Opening tutor message
+          journalThreadEl.innerHTML = `
+            <div class="j-msg j-msg--tutor">Hey — I'm your tutor. The more I know about you, the more your texts will sound like your actual life. So: <em>who are you?</em> Anything works — what you do, where you are, why you started learning German.</div>
+          `;
+        } else {
+          journalThreadEl.innerHTML = hist.map((m) => {
+            if (m.role === 'tutor') return `<div class="j-msg j-msg--tutor">${escapeHtml(m.text)}</div>`;
+            if (m.role === 'user')  return `<div class="j-msg j-msg--user">${escapeHtml(m.text)}</div>`;
+            if (m.role === 'saved') return `<div class="j-msg j-msg--saved">${escapeHtml(m.text)}</div>`;
+            return '';
+          }).join('');
+        }
+        // Scroll thread into view if it's now tall
+        requestAnimationFrame(() => {
+          if (journalChatEl) journalChatEl.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        });
+      }
+
+      // Auto-grow textarea
+      function autoGrowField() {
+        if (!journalFieldEl) return;
+        journalFieldEl.style.height = 'auto';
+        journalFieldEl.style.height = Math.min(journalFieldEl.scrollHeight, 160) + 'px';
+        if (journalSendEl) journalSendEl.disabled = !journalFieldEl.value.trim();
+      }
+
+      if (journalFieldEl) {
+        journalFieldEl.addEventListener('input', autoGrowField);
+        journalFieldEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (journalFormEl) journalFormEl.requestSubmit();
+          }
+        });
+      }
+
+      // Suggestion chips — fill the input with the suggestion text
+      if (journalSuggestionsEl && journalFieldEl) {
+        journalSuggestionsEl.addEventListener('click', (e) => {
+          const chip = e.target.closest('.j-chip');
+          if (!chip) return;
+          journalFieldEl.value = chip.dataset.suggest || chip.textContent || '';
+          autoGrowField();
+          journalFieldEl.focus();
+        });
+      }
+
+      // Wire editor inputs — manual override of profile fields
       $$('[data-profile-field]').forEach((input) => {
         input.addEventListener('input', () => {
           const p = getActiveProfile();
@@ -970,7 +1107,22 @@
         });
       });
 
-      // Family ribbon click delegation — switch / add / remove
+      // Open / close the editor
+      if (journalSummaryEditEl && journalEditorEl) {
+        journalSummaryEditEl.addEventListener('click', () => {
+          fillProfileForm();
+          journalEditorEl.hidden = false;
+          journalEditorEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        });
+      }
+      if (journalEditorDoneEl && journalEditorEl) {
+        journalEditorDoneEl.addEventListener('click', () => {
+          journalEditorEl.hidden = true;
+          renderJournalCards();
+        });
+      }
+
+      // Family ribbon — switch / add / remove
       if (journalFamilyEl) {
         journalFamilyEl.addEventListener('click', (e) => {
           const addBtn = e.target.closest('#journal-member-add');
@@ -979,7 +1131,6 @@
             if (!name) return;
             const newId = createProfileWithName(name);
             switchProfile(newId);
-            renderJournalFamily();
             fillProfileForm();
             return;
           }
@@ -990,27 +1141,25 @@
             const name = (p && p.name) ? p.name : 'this profile';
             if (!window.confirm(`Remove ${name}? Their saved words and progress will be lost.`)) return;
             deleteProfile(state.activeProfileId);
-            renderJournalFamily();
             fillProfileForm();
             return;
           }
-          const member = e.target.closest('.journal__member');
+          const member = e.target.closest('.j-member');
           if (member) {
             switchProfile(member.dataset.profileId);
-            renderJournalFamily();
             fillProfileForm();
           }
         });
       }
 
-      // Journal avatar upload — click avatar → file picker → downscale → save
+      // Avatar upload
       if (journalAvatarEl && journalAvatarInput) {
         journalAvatarEl.addEventListener('click', () => journalAvatarInput.click());
         journalAvatarInput.addEventListener('change', () => {
           const file = journalAvatarInput.files && journalAvatarInput.files[0];
           if (!file) return;
           if (!/^image\//.test(file.type)) { alert('Please pick an image file.'); return; }
-          if (file.size > 4 * 1024 * 1024)  { alert('That image is too big — please pick one under 4MB.'); return; }
+          if (file.size > 4 * 1024 * 1024)  { alert('That image is too big — under 4MB please.'); return; }
           const reader = new FileReader();
           reader.onload = () => {
             const p = getActiveProfile();
@@ -1024,6 +1173,180 @@
           };
           reader.readAsDataURL(file);
           journalAvatarInput.value = '';
+        });
+      }
+
+      // ── AI: extract profile facts + reply naturally ──────────────
+      async function callJournalAI(systemPrompt, userMsg, expectsJson = true) {
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userMsg },
+        ];
+        const body = {
+          model: 'deepseek-chat',
+          messages,
+          temperature: 0.7,
+          max_tokens: 600,
+        };
+        if (expectsJson) body.response_format = { type: 'json_object' };
+
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error('AI request failed (' + res.status + ')');
+        const json = await res.json();
+        const txt = json?.choices?.[0]?.message?.content || '';
+        if (!expectsJson) return txt;
+        try { return JSON.parse(txt); } catch (_) { return null; }
+      }
+
+      function showTyping() {
+        if (!journalThreadEl) return;
+        const t = document.createElement('div');
+        t.className = 'j-typing';
+        t.id = 'journal-typing';
+        t.innerHTML = '<span></span><span></span><span></span>';
+        journalThreadEl.appendChild(t);
+        if (journalChatEl) journalChatEl.scrollIntoView({ block: 'end', behavior: 'smooth' });
+      }
+      function hideTyping() {
+        const t = document.getElementById('journal-typing');
+        if (t) t.remove();
+      }
+
+      // The big tutor system prompt. We ask it to return strict JSON that
+      // contains both a chat reply and structured profile updates.
+      const JOURNAL_SYSTEM_PROMPT = `You are a warm, low-key German tutor talking with a learner who is filling in their profile so you can write personalised reading texts for them.
+
+Your job each turn:
+1. Read the user's message naturally.
+2. Update the structured profile object with anything they newly share. Only include fields you have a direct mention of — do NOT invent or guess. Leave fields you don't have info on out entirely.
+3. Reply with ONE warm, casual sentence acknowledging what they said, then ONE follow-up question that goes a layer deeper. Sound human, not corporate. No emojis. No "great!". Be a real person.
+4. If the user has already shared substantial info (name, what they do, why German, location at minimum), set "summary" to a 1–2 sentence "about you" paragraph in second person ("You're a designer in Berlin, learning German because…"). Otherwise set summary to empty string.
+5. If summary is non-empty, also write "plan": a 2–3 sentence personalised teaching plan in second person that says what kinds of texts you'll generate for them. Reference specific German cultural touchstones (Späti, Wochenmarkt, U-Bahn, Anmeldung, WG, Hausmeister, Pfand, etc) where it fits their life. Otherwise set plan to empty string.
+
+Return STRICT JSON only:
+{
+  "reply": "string",
+  "extracted": { "name": "...", "age": "...", "occupation": "...", "hobbies": "...", "location": "...", "goals": "...", "weakAreas": "..." },
+  "summary": "string (or empty)",
+  "plan": "string (or empty)"
+}
+
+Only include fields in "extracted" that you actually learned this turn. Existing values: ${'${EXISTING}'}.`;
+
+      async function handleJournalSend(userText) {
+        const p = getActiveProfile();
+        if (!p || !userText.trim()) return;
+
+        // Append user message
+        p.journalHistory = p.journalHistory || [];
+        p.journalHistory.push({ role: 'user', text: userText.trim() });
+        renderJournalThread();
+        renderJournalCards();
+        persistProfiles();
+
+        showTyping();
+        try {
+          const existingSummary = PROFILE_FIELDS
+            .map((f) => `${f}: ${(p[f] || '').toString().trim() || '(unknown)'}`)
+            .join('; ');
+          const sys = JOURNAL_SYSTEM_PROMPT.replace('${EXISTING}', existingSummary);
+
+          // Build conversation context — last 6 turns
+          const recent = (p.journalHistory || []).slice(-12)
+            .map((m) => (m.role === 'user' ? 'USER: ' : m.role === 'tutor' ? 'TUTOR: ' : '') + m.text)
+            .filter(Boolean)
+            .join('\n');
+
+          const result = await callJournalAI(sys, `Conversation so far:\n${recent}\n\nNow respond.`, true);
+          hideTyping();
+
+          if (!result || typeof result !== 'object') throw new Error('Bad JSON from AI');
+
+          // Merge extracted fields
+          const ex = result.extracted || {};
+          let extractedKeys = [];
+          for (const f of PROFILE_FIELDS) {
+            const v = ex[f];
+            if (typeof v === 'string' && v.trim()) {
+              p[f] = v.trim();
+              extractedKeys.push(f);
+            }
+          }
+
+          // Save AI summary + plan if they came back non-empty
+          if (typeof result.summary === 'string' && result.summary.trim()) {
+            p.journalSummary = result.summary.trim();
+          }
+          if (typeof result.plan === 'string' && result.plan.trim()) {
+            p.journalPlan = result.plan.trim();
+          }
+
+          // Tutor's reply
+          const reply = (result.reply || '').toString().trim();
+          if (reply) {
+            p.journalHistory.push({ role: 'tutor', text: reply });
+          }
+          // Subtle "saved" notice if we extracted anything
+          if (extractedKeys.length > 0) {
+            const labelMap = {
+              name: 'name', age: 'age', occupation: 'what you do',
+              hobbies: 'interests', location: 'where you are',
+              goals: 'why German', weakAreas: 'what to work on',
+            };
+            const labels = extractedKeys.map((k) => labelMap[k] || k).join(', ');
+            p.journalHistory.push({ role: 'saved', text: `Saved: ${labels}` });
+          }
+
+          persistProfiles();
+          updateJournalAvatar();
+          renderJournalFamily();
+          renderJournalCards();
+          renderJournalThread();
+        } catch (err) {
+          hideTyping();
+          p.journalHistory.push({
+            role: 'tutor',
+            text: "Hmm, I lost the thread for a sec — the network blipped. Could you try that again?",
+          });
+          persistProfiles();
+          renderJournalThread();
+        }
+      }
+
+      if (journalFormEl) {
+        journalFormEl.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const txt = (journalFieldEl?.value || '').trim();
+          if (!txt) return;
+          journalFieldEl.value = '';
+          autoGrowField();
+          handleJournalSend(txt);
+        });
+      }
+
+      // Refresh plan — re-asks AI to write a new plan from the existing profile
+      if (journalPlanRefreshEl) {
+        journalPlanRefreshEl.addEventListener('click', async () => {
+          const p = getActiveProfile();
+          if (!p || profileFilledCount(p) < 3) return;
+          journalPlanRefreshEl.disabled = true;
+          try {
+            const profileBlock = PROFILE_FIELDS
+              .map((f) => `${f}: ${(p[f] || '').toString().trim() || '(unknown)'}`)
+              .join('\n');
+            const sys = `You write personalised German-learning plans for a learner. Write 2–3 sentences in second person describing the kinds of texts you'll generate for them — reference real German cultural touchstones (Späti, Wochenmarkt, U-Bahn, Anmeldung, WG, Hausmeister, Pfand, etc) where they fit their life. Return strict JSON: { "plan": "string" }`;
+            const result = await callJournalAI(sys, `Their profile:\n${profileBlock}\n\nWrite their plan.`, true);
+            if (result && typeof result.plan === 'string' && result.plan.trim()) {
+              p.journalPlan = result.plan.trim();
+              persistProfiles();
+              renderJournalCards();
+            }
+          } catch (_) { /* silent */ }
+          journalPlanRefreshEl.disabled = false;
         });
       }
 
@@ -2995,7 +3318,43 @@ Other rules:
         cardBody.textContent = 'Initialization failed. Open the console for details.';
       }
 
-      // welcome screen removed — app loads straight in.
+      // ─────────────── Splash screen ───────────────
+      // First-visit-per-session intro. After the user clicks Begin (or hits
+      // Enter), it animates out and never returns this session. To re-show it,
+      // clear sessionStorage.
+      (() => {
+        const splash = document.getElementById('splash');
+        const cta    = document.getElementById('splash-cta');
+        if (!splash || !cta) return;
+
+        const SEEN_KEY = 'klar:splash-seen';
+        let seen = false;
+        try { seen = !!sessionStorage.getItem(SEEN_KEY); } catch (_) {}
+
+        if (seen) {
+          splash.hidden = true;
+          return;
+        }
+
+        splash.hidden = false;
+
+        function dismiss() {
+          try { sessionStorage.setItem(SEEN_KEY, '1'); } catch (_) {}
+          splash.classList.add('is-leaving');
+          // Remove from DOM after the exit transition so it can't trap focus
+          setTimeout(() => { splash.hidden = true; splash.classList.remove('is-leaving'); }, 520);
+        }
+
+        cta.addEventListener('click', dismiss);
+        document.addEventListener('keydown', function onKey(e) {
+          if (splash.hidden) { document.removeEventListener('keydown', onKey); return; }
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            dismiss();
+            document.removeEventListener('keydown', onKey);
+          }
+        });
+      })();
 
       // ===================================================================
       // PREMIUM POLISH — scroll progress, topbar fade, loading rotation,

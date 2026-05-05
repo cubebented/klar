@@ -13,8 +13,34 @@
     rel="stylesheet"
   />
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/welcome.css" />
+  <link rel="stylesheet" href="css/journal.css" />
 </head>
 <body>
+  <!-- ──────────────── Splash / Welcome ──────────────── -->
+  <div class="splash" id="splash" hidden>
+    <div class="splash__bg" aria-hidden="true"></div>
+    <span class="splash__corner splash__corner--tl" aria-hidden="true">N° 01</span>
+    <span class="splash__corner splash__corner--tr" aria-hidden="true">Deutsch / Lernen</span>
+    <span class="splash__corner splash__corner--bl" aria-hidden="true">A1 — C1</span>
+    <span class="splash__corner splash__corner--br" aria-hidden="true">klar.</span>
+
+    <main class="splash__stage" role="main" aria-label="Welcome">
+      <p class="splash__eyebrow">A reading practice for German learners.</p>
+      <h1 class="splash__wordmark" aria-label="Deutschify">
+        <span class="splash__ch" style="--d: 40ms">D</span><span class="splash__ch" style="--d: 110ms">e</span><span class="splash__ch" style="--d: 180ms">u</span><span class="splash__ch" style="--d: 250ms">t</span><span class="splash__ch" style="--d: 320ms">s</span><span class="splash__ch" style="--d: 390ms">c</span><span class="splash__ch" style="--d: 460ms">h</span><em class="splash__ch splash__ch--ify" style="--d: 580ms">ify</em>
+      </h1>
+      <p class="splash__lede" id="splash-lede">Click any word to learn it. Listen to natives read. Texts that feel like your life.</p>
+      <button type="button" class="splash__cta" id="splash-cta">
+        <span class="splash__cta-text">Begin</span>
+        <span class="splash__cta-arrow" aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </span>
+      </button>
+      <p class="splash__hint">press <kbd>Enter</kbd> to start</p>
+    </main>
+  </div>
+
   <!-- Toast container — bottom-right notifications -->
   <div class="toast-host" id="toast-host" aria-live="polite" aria-atomic="false"></div>
 
@@ -277,56 +303,114 @@
         </div>
       </div>
 
-      <!-- Journal — personal context, written like a notebook page -->
-      <div class="journal" id="view-journal" hidden>
-        <div class="journal__inner">
+      <!-- ──────────────── Journal ────────────────
+           A conversational profile, not a form. The user chats with a tutor;
+           the tutor extracts profile facts, surfaces an "About you" card, and
+           writes a personalised teaching plan that feeds every generated text.
+      -->
+      <div class="journal-v2" id="view-journal" hidden>
+        <div class="journal-v2__shell">
 
-          <!-- Hero: avatar + name -->
-          <div class="journal__hero">
-            <button type="button" class="journal__avatar" id="journal-avatar" aria-label="Change photo">
-              <span class="journal__avatar-initial" id="journal-avatar-initial">U</span>
-              <span class="journal__avatar-edit" aria-hidden="true">
+          <!-- Hero: avatar + name + family ribbon -->
+          <header class="j-hero">
+            <button type="button" class="j-hero__avatar" id="journal-avatar" aria-label="Change photo">
+              <span class="j-hero__avatar-initial" id="journal-avatar-initial">·</span>
+              <span class="j-hero__avatar-edit" aria-hidden="true">
                 <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M2 11.5L11 2.5l2.5 2.5L4.5 14H2v-2.5z"/><path d="M9 4.5l2.5 2.5"/>
                 </svg>
               </span>
             </button>
             <input type="file" id="journal-avatar-input" accept="image/*" hidden />
-            <div class="journal__name-row">
-              <input class="journal__name" type="text" data-profile-field="name" placeholder="Your name" autocomplete="off" />
-              <div class="journal__meta">
-                <input class="journal__meta-input journal__meta-input--age" type="text" data-profile-field="age" placeholder="age" inputmode="numeric" autocomplete="off" />
-                <span class="journal__meta-dot" aria-hidden="true">·</span>
-                <input class="journal__meta-input journal__meta-input--role" type="text" data-profile-field="occupation" placeholder="what you do" autocomplete="off" />
-              </div>
+            <div class="j-hero__text">
+              <input class="j-hero__name" type="text" data-profile-field="name" placeholder="Your name" autocomplete="off" spellcheck="false" />
+              <p class="j-hero__sub" id="journal-hero-sub">Tell your tutor a little about yourself — they'll write your texts around it.</p>
             </div>
-          </div>
+          </header>
 
           <!-- Family ribbon — switch / add / remove members -->
-          <div class="journal__family" id="journal-family"></div>
+          <div class="j-family" id="journal-family"></div>
 
-          <!-- Free-form sections — each prompts a paragraph -->
-          <section class="journal__section">
-            <p class="journal__prompt">A bit about you</p>
-            <textarea class="journal__textarea" data-profile-field="hobbies" rows="2" placeholder="hobbies, things you're into, what fills your week…"></textarea>
+          <!-- AI-generated "About you" card. Hidden until first extraction lands. -->
+          <article class="j-card j-card--profile" id="journal-summary" hidden>
+            <header class="j-card__head">
+              <span class="j-card__kind">About you</span>
+              <button type="button" class="j-card__action" id="journal-summary-edit" aria-label="Edit profile">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 11.5L11 2.5l2.5 2.5L4.5 14H2v-2.5z"/><path d="M9 4.5l2.5 2.5"/></svg>
+              </button>
+            </header>
+            <div class="j-card__body" id="journal-summary-body"></div>
+            <ul class="j-facts" id="journal-facts"></ul>
+          </article>
+
+          <!-- Tutor's plan — AI-generated personalised teaching plan -->
+          <article class="j-card j-card--plan" id="journal-plan" hidden>
+            <header class="j-card__head">
+              <span class="j-card__kind j-card__kind--accent">Your tutor's plan</span>
+              <button type="button" class="j-card__action" id="journal-plan-refresh" aria-label="Generate fresh plan" title="Refresh plan">
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 8a6 6 0 1 1-1.8-4.2"/><path d="M14 2.5V6h-3.5"/></svg>
+              </button>
+            </header>
+            <div class="j-card__body" id="journal-plan-body"></div>
+          </article>
+
+          <!-- Conversation thread — where the user actually talks to the tutor -->
+          <section class="j-chat" id="journal-chat">
+            <div class="j-chat__thread" id="journal-thread" aria-live="polite"></div>
+
+            <div class="j-chat__suggestions" id="journal-suggestions" hidden>
+              <button type="button" class="j-chip" data-suggest="I'm a designer in Berlin, learning German to talk to my partner's family.">designer in Berlin · partner's family</button>
+              <button type="button" class="j-chip" data-suggest="I'm 32, work in tech in Zürich, and I want to feel comfortable at the bakery and on the U-Bahn.">tech, Zürich, daily life</button>
+              <button type="button" class="j-chip" data-suggest="Moving to Munich in 6 months for a master's in mechanical engineering — need B2 by then.">student moving to Munich</button>
+              <button type="button" class="j-chip" data-suggest="I just want to read German books — Kafka, Sebald, that kind of thing. Speaking is secondary.">reading literature</button>
+            </div>
+
+            <form class="j-chat__input" id="journal-form" autocomplete="off">
+              <textarea class="j-chat__field" id="journal-field" rows="1" placeholder="Tell your tutor about yourself…" aria-label="Talk to your tutor"></textarea>
+              <button type="submit" class="j-chat__send" id="journal-send" aria-label="Send" disabled>
+                <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8h11"/><path d="M9 4l4 4-4 4"/></svg>
+              </button>
+            </form>
+            <p class="j-chat__nudge" id="journal-nudge">Nothing is saved to a server — your profile stays in this browser.</p>
           </section>
 
-          <section class="journal__section">
-            <p class="journal__prompt">Where you are, or where you're heading</p>
-            <textarea class="journal__textarea" data-profile-field="location" rows="2" placeholder="city, neighbourhood, plans, anywhere on your mind…"></textarea>
+          <!-- Edit mode — appears when user taps edit pencil. Lets them tune fields directly. -->
+          <section class="j-editor" id="journal-editor" hidden>
+            <div class="j-editor__row">
+              <label class="j-editor__label">Name</label>
+              <input class="j-editor__input" type="text" data-profile-field="name" autocomplete="off" />
+            </div>
+            <div class="j-editor__row j-editor__row--two">
+              <div>
+                <label class="j-editor__label">Age</label>
+                <input class="j-editor__input" type="text" data-profile-field="age" inputmode="numeric" autocomplete="off" />
+              </div>
+              <div>
+                <label class="j-editor__label">What you do</label>
+                <input class="j-editor__input" type="text" data-profile-field="occupation" autocomplete="off" />
+              </div>
+            </div>
+            <div class="j-editor__row">
+              <label class="j-editor__label">A bit about you</label>
+              <textarea class="j-editor__input j-editor__input--multi" data-profile-field="hobbies" rows="2"></textarea>
+            </div>
+            <div class="j-editor__row">
+              <label class="j-editor__label">Where you are</label>
+              <textarea class="j-editor__input j-editor__input--multi" data-profile-field="location" rows="2"></textarea>
+            </div>
+            <div class="j-editor__row">
+              <label class="j-editor__label">Why German</label>
+              <textarea class="j-editor__input j-editor__input--multi" data-profile-field="goals" rows="2"></textarea>
+            </div>
+            <div class="j-editor__row">
+              <label class="j-editor__label">What you want to work on</label>
+              <textarea class="j-editor__input j-editor__input--multi" data-profile-field="weakAreas" rows="3"></textarea>
+            </div>
+            <div class="j-editor__foot">
+              <button type="button" class="j-editor__done" id="journal-editor-done">Done</button>
+            </div>
           </section>
 
-          <section class="journal__section">
-            <p class="journal__prompt">Why you're learning German</p>
-            <textarea class="journal__textarea" data-profile-field="goals" rows="2" placeholder="what pulled you in — work, family, travel, exam, the language itself…"></textarea>
-          </section>
-
-          <section class="journal__section">
-            <p class="journal__prompt">What you want to get better at</p>
-            <textarea class="journal__textarea" data-profile-field="weakAreas" rows="3" placeholder="the parts that still trip you up — case endings, sounding natural, small talk, anything specific. Write it like you'd tell a tutor."></textarea>
-          </section>
-
-          <p class="journal__footnote" id="journal-footnote">The more honest you are, the more your texts will actually feel like your life.</p>
         </div>
       </div>
     </main>
