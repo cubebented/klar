@@ -2995,76 +2995,7 @@ Other rules:
         cardBody.textContent = 'Initialization failed. Open the console for details.';
       }
 
-      // welcome screen ----------------------------------------------------
-      (() => {
-        const welcomeEl  = document.getElementById('welcome');
-        const startBtn   = document.getElementById('welcome-start');
-        if (!welcomeEl || !startBtn) return;
-
-        // Sync the welcome level picker with current state on load
-        syncPressed('level', state.level);
-
-        const alreadySeen = (() => {
-          try { return !!sessionStorage.getItem('deutschify:welcomed'); } catch (_) { return false; }
-        })();
-
-        if (alreadySeen) {
-          welcomeEl.hidden = true;
-          return;
-        }
-
-        // Rotating tagline ------------------------------------------------
-        const tagline = document.getElementById('welcome-tagline');
-        const TAGLINES = [
-          'AI-generated German reading practice.',
-          'Tap any word to reveal its meaning.',
-          'A1 to C1, real moments, real voice.',
-          'Build daily fluency, one text at a time.',
-        ];
-        let tagIdx = 0;
-        let tagTimer = null;
-        if (tagline) {
-          tagTimer = setInterval(() => {
-            tagIdx = (tagIdx + 1) % TAGLINES.length;
-            tagline.classList.add('is-swapping');
-            setTimeout(() => {
-              tagline.textContent = TAGLINES[tagIdx];
-              tagline.classList.remove('is-swapping');
-            }, 320);
-          }, 3400);
-        }
-
-        // Parallax on the giant Sprache decoration ------------------------
-        const deco = welcomeEl.querySelector('.welcome__deco');
-        function onMouseMove(e) {
-          if (welcomeEl.hidden || welcomeEl.classList.contains('is-leaving')) return;
-          const cx = window.innerWidth / 2;
-          const cy = window.innerHeight / 2;
-          const dx = (e.clientX - cx) / cx;
-          const dy = (e.clientY - cy) / cy;
-          if (deco) {
-            deco.style.setProperty('--px', (dx * -18).toFixed(1) + 'px');
-            deco.style.setProperty('--py', (dy * -12).toFixed(1) + 'px');
-          }
-        }
-        window.addEventListener('mousemove', onMouseMove);
-
-        function dismissWelcome() {
-          try { sessionStorage.setItem('deutschify:welcomed', '1'); } catch (_) {}
-          if (tagTimer) clearInterval(tagTimer);
-          window.removeEventListener('mousemove', onMouseMove);
-          welcomeEl.classList.add('is-leaving');
-          welcomeEl.addEventListener('transitionend', () => {
-            welcomeEl.hidden = true;
-          }, { once: true });
-        }
-
-        startBtn.addEventListener('click', () => {
-          dismissWelcome();
-          // Give the welcome exit animation a head-start before loading
-          setTimeout(generate, 340);
-        });
-      })();
+      // welcome screen removed — app loads straight in.
 
       // ===================================================================
       // PREMIUM POLISH — scroll progress, topbar fade, loading rotation,
