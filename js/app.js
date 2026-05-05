@@ -873,88 +873,79 @@
         if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
       });
 
-      // ─────────────── PROFILE UI (family) ─────────────────
-      const profileSwitcherEl = $('#profile-switcher');
-      const profileDeleteBtn = $('#profile-delete');
-      const weakAreaGridEl = $('#weak-area-grid');
-      const profileHeroAvatar = $('#profile-hero-avatar');
-      const profileHeroSub = $('#profile-hero-sub');
-      const profilePicBtn = $('#profile-pic-btn');
-      const profilePicInput = $('#profile-pic-input');
+      // ─────────────── JOURNAL UI (per-profile) ─────────────────
+      const journalAvatarEl = $('#journal-avatar');
+      const journalAvatarInitialEl = $('#journal-avatar-initial');
+      const journalAvatarInput = $('#journal-avatar-input');
+      const journalFamilyEl = $('#journal-family');
+      const journalFootnoteEl = $('#journal-footnote');
 
-      // Settings tab switcher
-      const settingsTabs = $$('.settings-tab');
-      const settingsPanes = $$('.settings-pane');
-      settingsTabs.forEach((tab) => {
-        tab.addEventListener('click', () => {
-          const which = tab.dataset.tab;
-          settingsTabs.forEach((t) => t.setAttribute('aria-pressed', String(t === tab)));
-          settingsPanes.forEach((p) => { p.hidden = p.dataset.pane !== which; });
-          // Update sliding indicators in the new pane in case any dropdowns are inside
-          requestAnimationFrame(() => { if (typeof updateAllIndicators === 'function') updateAllIndicators(); });
-        });
-      });
-
-      // Build a tiny avatar HTML string (image if profile has one, else initials)
-      function avatarHtml(p, size) {
-        const px = size + 'px';
-        const initial = (p.name || 'U').trim()[0]?.toUpperCase() || 'U';
-        if (p.avatar) {
-          return `<span class="profile-chip__avatar profile-chip__avatar--img" style="width:${px};height:${px};background-image:url(${p.avatar});background-size:cover;background-position:center"></span>`;
-        }
-        return `<span class="profile-chip__avatar" style="width:${px};height:${px};display:inline-flex;align-items:center;justify-content:center;font:600 10px var(--font-display);color:var(--color-text-strong)">${escapeHtml(initial)}</span>`;
-      }
-
-      // Render the chip list of profiles + an "Add member" chip
-      function renderProfileSwitcher() {
-        if (!profileSwitcherEl) return;
-        const ids = Object.keys(state.profiles || {});
-        const html = ids.map((id) => {
+      // Migrate legacy weakAreas (was an array of preset IDs) → free-form string.
+      // Runs once per profile per page load — leaves strings alone.
+      (function migrateWeakAreas() {
+        for (const id of Object.keys(state.profiles || {})) {
           const p = state.profiles[id];
-          const active = id === state.activeProfileId;
-          const display = (p.name || 'Unnamed').trim() || 'Unnamed';
-          return `<button type="button" class="profile-chip" data-profile-id="${escapeAttr(id)}" aria-pressed="${active}">` +
-                 avatarHtml(p, 18) + escapeHtml(display) +
-                 `</button>`;
-        }).join('') + `<button type="button" class="profile-chip profile-chip--add" id="profile-add">+ Add member</button>`;
-        profileSwitcherEl.innerHTML = html;
-        if (profileDeleteBtn) profileDeleteBtn.hidden = ids.length <= 1;
-      }
-
-      // Update the large hero avatar + subline message
-      function updateHeroAvatar() {
-        const p = getActiveProfile();
-        if (!p || !profileHeroAvatar) return;
-        if (p.avatar) {
-          profileHeroAvatar.style.backgroundImage = `url(${p.avatar})`;
-          profileHeroAvatar.textContent = '';
-        } else {
-          profileHeroAvatar.style.backgroundImage = '';
-          profileHeroAvatar.textContent = (p.name || 'U').trim()[0]?.toUpperCase() || 'U';
+          if (Array.isArray(p.weakAreas)) {
+            const labels = p.weakAreas
+              .map((wid) => {
+                const w = (typeof WEAK_AREAS !== 'undefined') ? WEAK_AREAS.find((x) => x.id === wid) : null;
+                return w ? w.label.toLowerCase() : wid;
+              })
+              .filter(Boolean);
+            p.weakAreas = labels.join(', ');
+          } else if (p.weakAreas == null) {
+            p.weakAreas = '';
+          }
         }
-        if (profileHeroSub) {
-          const filled = [p.name, p.age, p.occupation, p.hobbies, p.location, p.goals]
+      })();
+
+      // Update avatar + initial in the journal hero
+      function updateJournalAvatar() {
+        const p = getActiveProfile();
+        if (!p || !journalAvatarEl) return;
+        const initial = (p.name || '').trim()[0]?.toUpperCase() || '';
+        if (p.avatar) {
+          journalAvatarEl.style.backgroundImage = `url(${p.avatar})`;
+          journalAvatarEl.classList.add('journal__avatar--has-photo');
+          if (journalAvatarInitialEl) journalAvatarInitialEl.textContent = '';
+        } else {
+          journalAvatarEl.style.backgroundImage = '';
+          journalAvatarEl.classList.remove('journal__avatar--has-photo');
+          if (journalAvatarInitialEl) journalAvatarInitialEl.textContent = initial || '·';
+        }
+        // Footnote nudge based on how filled-in the profile is
+        if (journalFootnoteEl) {
+          const filled = [p.name, p.age, p.occupation, p.hobbies, p.location, p.goals, p.weakAreas]
             .filter((x) => x && String(x).trim()).length;
-          profileHeroSub.textContent = filled === 0
-            ? 'Tell me about yourself so I can write content that fits your life.'
+          journalFootnoteEl.textContent = filled === 0
+            ? 'The more honest you are, the more your texts will actually feel like your life.'
             : filled < 4
-              ? 'Looking good — fill in a couple more for sharper personalisation.'
+              ? 'Looking good — a couple more lines and the AI really starts to know you.'
               : 'Looking great. Generate a text and you should feel the difference.';
         }
       }
 
-      // Render the weak-area multi-select (uses WEAK_AREAS const)
-      function renderWeakAreaGrid() {
-        if (!weakAreaGridEl) return;
-        const p = getActiveProfile();
-        const selected = new Set((p && p.weakAreas) || []);
-        weakAreaGridEl.innerHTML = WEAK_AREAS.map((w) => {
-          const on = selected.has(w.id);
-          return `<button type="button" class="weak-area-chip" data-weak-area="${escapeAttr(w.id)}" aria-pressed="${on}">${escapeHtml(w.label)}</button>`;
+      // Render the family ribbon — small chips for each member + add/remove.
+      function renderJournalFamily() {
+        if (!journalFamilyEl) return;
+        const ids = Object.keys(state.profiles || {});
+        const chips = ids.map((id) => {
+          const p = state.profiles[id];
+          const active = id === state.activeProfileId;
+          const initial = (p.name || '').trim()[0]?.toUpperCase() || '·';
+          const av = p.avatar
+            ? `<span class="journal__member-avatar" style="background-image:url(${p.avatar})"></span>`
+            : `<span class="journal__member-avatar journal__member-avatar--initial">${escapeHtml(initial)}</span>`;
+          return `<button type="button" class="journal__member${active ? ' is-active' : ''}" data-profile-id="${escapeAttr(id)}" aria-pressed="${active}">${av}<span class="journal__member-name">${escapeHtml(p.name || 'Unnamed')}</span></button>`;
         }).join('');
+        const addBtn = `<button type="button" class="journal__member-add" id="journal-member-add" aria-label="Add family member">+</button>`;
+        const removeBtn = ids.length > 1
+          ? `<button type="button" class="journal__member-remove" id="journal-member-remove" aria-label="Remove this profile">Remove this profile</button>`
+          : '';
+        journalFamilyEl.innerHTML = `<div class="journal__family-row">${chips}${addBtn}</div>${removeBtn}`;
       }
 
-      // Fill the form fields with the active profile's saved values
+      // Fill all journal/profile inputs from the active profile's saved values
       function fillProfileForm() {
         const p = getActiveProfile();
         if (!p) return;
@@ -962,43 +953,81 @@
           const field = input.dataset.profileField;
           input.value = (p[field] != null) ? String(p[field]) : '';
         });
-        updateHeroAvatar();
-        renderWeakAreaGrid();
+        updateJournalAvatar();
+        renderJournalFamily();
       }
 
-      // Profile picture upload — read as data URL, save to profile.avatar
-      if (profilePicBtn && profilePicInput) {
-        profilePicBtn.addEventListener('click', () => profilePicInput.click());
-        profilePicInput.addEventListener('change', () => {
-          const file = profilePicInput.files && profilePicInput.files[0];
+      // Wire up form inputs — every keystroke persists to the active profile
+      $$('[data-profile-field]').forEach((input) => {
+        input.addEventListener('input', () => {
+          const p = getActiveProfile();
+          if (!p) return;
+          const field = input.dataset.profileField;
+          p[field] = input.value;
+          updateJournalAvatar();
+          if (field === 'name') renderJournalFamily();
+          persistProfiles();
+        });
+      });
+
+      // Family ribbon click delegation — switch / add / remove
+      if (journalFamilyEl) {
+        journalFamilyEl.addEventListener('click', (e) => {
+          const addBtn = e.target.closest('#journal-member-add');
+          if (addBtn) {
+            const name = (window.prompt('Name for the new family member?', '') || '').trim();
+            if (!name) return;
+            const newId = createProfileWithName(name);
+            switchProfile(newId);
+            renderJournalFamily();
+            fillProfileForm();
+            return;
+          }
+          const removeBtn = e.target.closest('#journal-member-remove');
+          if (removeBtn) {
+            if (Object.keys(state.profiles).length <= 1) return;
+            const p = getActiveProfile();
+            const name = (p && p.name) ? p.name : 'this profile';
+            if (!window.confirm(`Remove ${name}? Their saved words and progress will be lost.`)) return;
+            deleteProfile(state.activeProfileId);
+            renderJournalFamily();
+            fillProfileForm();
+            return;
+          }
+          const member = e.target.closest('.journal__member');
+          if (member) {
+            switchProfile(member.dataset.profileId);
+            renderJournalFamily();
+            fillProfileForm();
+          }
+        });
+      }
+
+      // Journal avatar upload — click avatar → file picker → downscale → save
+      if (journalAvatarEl && journalAvatarInput) {
+        journalAvatarEl.addEventListener('click', () => journalAvatarInput.click());
+        journalAvatarInput.addEventListener('change', () => {
+          const file = journalAvatarInput.files && journalAvatarInput.files[0];
           if (!file) return;
-          if (!/^image\//.test(file.type)) {
-            alert('Please pick an image file.');
-            return;
-          }
-          if (file.size > 4 * 1024 * 1024) {
-            alert('That image is too big — please pick one under 4MB.');
-            return;
-          }
+          if (!/^image\//.test(file.type)) { alert('Please pick an image file.'); return; }
+          if (file.size > 4 * 1024 * 1024)  { alert('That image is too big — please pick one under 4MB.'); return; }
           const reader = new FileReader();
           reader.onload = () => {
             const p = getActiveProfile();
             if (!p) return;
-            // Downscale to a reasonable size to keep localStorage small
             downscaleImage(String(reader.result), 256, (smallDataUrl) => {
               p.avatar = smallDataUrl;
               persistProfiles();
-              updateHeroAvatar();
-              renderProfileSwitcher();
+              updateJournalAvatar();
+              renderJournalFamily();
             });
           };
           reader.readAsDataURL(file);
-          // reset value so re-selecting same file fires change again
-          profilePicInput.value = '';
+          journalAvatarInput.value = '';
         });
       }
 
-      // Downscale via canvas — keeps localStorage well under 5MB even with many profiles
+      // Downscale via canvas — keeps localStorage tiny even with many profiles
       function downscaleImage(dataUrl, maxDim, cb) {
         const img = new Image();
         img.onload = () => {
@@ -1015,65 +1044,8 @@
         img.src = dataUrl;
       }
 
-      // Wire up form inputs — every keystroke saves into the active profile
-      $$('[data-profile-field]').forEach((input) => {
-        input.addEventListener('input', () => {
-          const p = getActiveProfile();
-          if (!p) return;
-          const field = input.dataset.profileField;
-          p[field] = input.value;
-          if (field === 'name') renderProfileSwitcher();
-          updateHeroAvatar();              // refresh initial + subline message
-          persistProfiles();
-        });
-      });
-
-      // Profile switcher click delegation
-      profileSwitcherEl.addEventListener('click', (e) => {
-        const chip = e.target.closest('.profile-chip');
-        if (!chip) return;
-        if (chip.id === 'profile-add') {
-          const name = (window.prompt('Name for the new family member?', '') || '').trim();
-          if (!name) return;
-          const newId = createProfileWithName(name);
-          switchProfile(newId);
-          renderProfileSwitcher();
-          fillProfileForm();
-          return;
-        }
-        const id = chip.dataset.profileId;
-        if (id) {
-          switchProfile(id);
-          renderProfileSwitcher();
-          fillProfileForm();
-        }
-      });
-
-      // Weak area chip toggling
-      weakAreaGridEl.addEventListener('click', (e) => {
-        const chip = e.target.closest('.weak-area-chip');
-        if (!chip) return;
-        const id = chip.dataset.weakArea;
-        const p = getActiveProfile();
-        if (!p) return;
-        p.weakAreas = p.weakAreas || [];
-        const idx = p.weakAreas.indexOf(id);
-        if (idx >= 0) p.weakAreas.splice(idx, 1);
-        else p.weakAreas.push(id);
-        chip.setAttribute('aria-pressed', String(idx < 0));
-        persistProfiles();
-      });
-
-      // Delete profile button
-      profileDeleteBtn.addEventListener('click', () => {
-        if (Object.keys(state.profiles).length <= 1) return;
-        const p = getActiveProfile();
-        const name = (p && p.name) ? p.name : 'this profile';
-        if (!window.confirm(`Remove ${name}? Their saved words and progress will be lost.`)) return;
-        deleteProfile(state.activeProfileId);
-        renderProfileSwitcher();
-        fillProfileForm();
-      });
+      // Initial render of journal so it's ready when user clicks the tab
+      fillProfileForm();
 
       // Called when active profile changes — pulls all per-profile state into the UI
       function onActiveProfileChanged() {
@@ -1108,21 +1080,57 @@
       const ctxMenu = $('#ctx-menu');
       let ctxTargetWord = null;
 
-      cardBody.addEventListener('contextmenu', (e) => {
-        const w = e.target.closest('.word');
-        if (!w) return;
-        e.preventDefault();
-        ctxTargetWord = w;
-        // Position, then clamp to viewport
+      function showCtxMenuAt(target, clientX, clientY) {
+        ctxTargetWord = target;
         ctxMenu.hidden = false;
         ctxMenu.style.left = '0px';
         ctxMenu.style.top = '0px';
         const rect = ctxMenu.getBoundingClientRect();
-        const x = Math.min(e.clientX, window.innerWidth - rect.width - 8);
-        const y = Math.min(e.clientY, window.innerHeight - rect.height - 8);
+        const x = Math.min(clientX, window.innerWidth - rect.width - 8);
+        const y = Math.min(clientY, window.innerHeight - rect.height - 8);
         ctxMenu.style.left = Math.max(8, x) + 'px';
         ctxMenu.style.top = Math.max(8, y) + 'px';
+      }
+
+      cardBody.addEventListener('contextmenu', (e) => {
+        const w = e.target.closest('.word');
+        if (!w) return;
+        e.preventDefault();
+        showCtxMenuAt(w, e.clientX, e.clientY);
       });
+
+      // ─── Mobile long-press → context menu ─────────────────────────────
+      // Touchscreens have no right-click. Hold a word for ~500ms to open
+      // the same menu (Show meaning / Play audio from here).
+      let longPressTimer = null;
+      let longPressTarget = null;
+      let longPressFiredFor = null;          // word the long-press just opened on; suppress the synthetic click
+      const LONG_PRESS_MS = 500;
+
+      cardBody.addEventListener('touchstart', (e) => {
+        const w = e.target.closest('.word');
+        if (!w) return;
+        longPressTarget = w;
+        const touch = e.touches[0];
+        const startX = touch.clientX;
+        const startY = touch.clientY;
+        longPressTimer = setTimeout(() => {
+          if (longPressTarget === w) {
+            longPressFiredFor = w;
+            showCtxMenuAt(w, startX, startY);
+            // Brief haptic feedback if available
+            if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+          }
+        }, LONG_PRESS_MS);
+      }, { passive: true });
+
+      const cancelLongPress = () => {
+        longPressTarget = null;
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      };
+      cardBody.addEventListener('touchend',    cancelLongPress, { passive: true });
+      cardBody.addEventListener('touchcancel', cancelLongPress, { passive: true });
+      cardBody.addEventListener('touchmove',   cancelLongPress, { passive: true });
       document.addEventListener('click', (e) => {
         if (!ctxMenu.hidden && !e.target.closest('.ctx-menu')) {
           ctxMenu.hidden = true;
@@ -1460,7 +1468,8 @@
 
       function setView(v) {
         const viewChat = document.getElementById('view-chat');
-        const VIEWS = { read: viewRead, chat: viewChat, progress: viewProgress };
+        const viewJournal = document.getElementById('view-journal');
+        const VIEWS = { read: viewRead, chat: viewChat, progress: viewProgress, journal: viewJournal };
 
         // Determine the currently-visible view from DOM, since bindRadioGroup
         // pre-updates state.view.
@@ -1494,6 +1503,10 @@
           }
           if (v === 'chat' && typeof window.__focusChat === 'function') {
             requestAnimationFrame(() => window.__focusChat());
+          }
+          if (v === 'journal') {
+            // Refresh form values + family ribbon when entering Journal
+            if (typeof fillProfileForm === 'function') fillProfileForm();
           }
 
           // Prepare new view above viewport, invisible
@@ -1761,6 +1774,16 @@
       function onWordClick(e) {
         // Ignore clicks that originated from inside the tooltip (e.g. the star button)
         if (e.target && e.target.closest && e.target.closest('.word__tip')) return;
+
+        // If a long-press just opened the context menu on this word, swallow the
+        // synthetic click that browsers fire on touchend. Otherwise the click would
+        // immediately toggle the word's active state and the user's gesture feels broken.
+        if (longPressFiredFor && longPressFiredFor === e.currentTarget) {
+          longPressFiredFor = null;
+          if (e.preventDefault) e.preventDefault();
+          if (e.stopPropagation) e.stopPropagation();
+          return;
+        }
 
         e.stopPropagation();   // don't trigger the document-level dismiss
         const el = e.currentTarget;
@@ -2218,13 +2241,16 @@ Other rules:
         if (p.hobbies)     fields.push('- Hobbies & interests: ' + p.hobbies);
         if (p.location)    fields.push('- Where they live / are going: ' + p.location);
         if (p.goals)       fields.push('- Why they\'re learning German: ' + p.goals);
-        if (p.weakAreas && p.weakAreas.length) {
-          const labels = p.weakAreas.map((id) => {
-            const w = WEAK_AREAS.find((x) => x.id === id);
-            return w ? w.label : id;
-          }).join(', ');
-          fields.push('- Wants to practice: ' + labels);
-        }
+        // weakAreas is a free-form string (used to be a chip array — migrated on load).
+        const weakText = (typeof p.weakAreas === 'string')
+          ? p.weakAreas.trim()
+          : (Array.isArray(p.weakAreas)
+              ? p.weakAreas.map((id) => {
+                  const w = (typeof WEAK_AREAS !== 'undefined') ? WEAK_AREAS.find((x) => x.id === id) : null;
+                  return w ? w.label : id;
+                }).join(', ')
+              : '');
+        if (weakText) fields.push('- Wants to practice / get better at: ' + weakText);
         if (fields.length === 0) return '';
         return [
           '',

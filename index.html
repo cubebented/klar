@@ -68,94 +68,9 @@
         </button>
       </header>
 
-      <!-- Tabs ============================================================ -->
-      <nav class="settings-tabs" role="tablist" aria-label="Settings tabs">
-        <button type="button" class="settings-tab" data-tab="you" aria-pressed="true" role="tab">
-          <svg class="settings-tab__icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="8" cy="6" r="3"/>
-            <path d="M2.5 14c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/>
-          </svg>
-          <span>You</span>
-        </button>
-        <button type="button" class="settings-tab" data-tab="family" aria-pressed="false" role="tab">
-          <svg class="settings-tab__icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="5.5" cy="6" r="2.2"/>
-            <circle cx="10.5" cy="6" r="2.2"/>
-            <path d="M1.5 14c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5"/>
-            <path d="M6.5 14c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5"/>
-          </svg>
-          <span>Family</span>
-        </button>
-        <button type="button" class="settings-tab" data-tab="reading" aria-pressed="false" role="tab">
-          <svg class="settings-tab__icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M2 3h5c1 0 1.5.5 1.5 1.5V13L8 12.5H3C2.5 12.5 2 12 2 11.5V3z"/>
-            <path d="M14 3H9c-1 0-1.5.5-1.5 1.5V13L8 12.5h5c.5 0 1-.5 1-1V3z"/>
-          </svg>
-          <span>Reading</span>
-        </button>
-      </nav>
-
-      <!-- TAB: You ====================================================== -->
-      <section class="settings-pane" data-pane="you" role="tabpanel">
-        <div class="profile-hero">
-          <div class="profile-hero__avatar-wrap">
-            <div class="profile-hero__avatar" id="profile-hero-avatar" aria-hidden="true"></div>
-            <button type="button" class="profile-hero__edit" id="profile-pic-btn" aria-label="Change photo" title="Change photo">
-              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2 11.5L11 2.5l2.5 2.5L4.5 14H2v-2.5z"/>
-                <path d="M9 4.5l2.5 2.5"/>
-              </svg>
-            </button>
-            <input type="file" id="profile-pic-input" accept="image/*" hidden />
-          </div>
-          <div class="profile-hero__main">
-            <input class="profile-hero__name" type="text" data-profile-field="name" placeholder="Your name" autocomplete="off" />
-            <p class="profile-hero__sub" id="profile-hero-sub">Tell me about yourself so I can write content that fits your life.</p>
-          </div>
-        </div>
-
-        <div class="profile-grid">
-          <label class="profile-field profile-field--inline">
-            <span class="profile-field__label">Age</span>
-            <input class="profile-field__input" type="text" data-profile-field="age" inputmode="numeric" placeholder="e.g. 15" autocomplete="off" />
-          </label>
-          <label class="profile-field profile-field--inline">
-            <span class="profile-field__label">Occupation</span>
-            <input class="profile-field__input" type="text" data-profile-field="occupation" placeholder="student, engineer, retired…" autocomplete="off" />
-          </label>
-        </div>
-
-        <label class="profile-field">
-          <span class="profile-field__label">Hobbies & interests</span>
-          <input class="profile-field__input" type="text" data-profile-field="hobbies" placeholder="hiking, anime, gaming, jazz…" autocomplete="off" />
-        </label>
-        <label class="profile-field">
-          <span class="profile-field__label">Where you live or are going</span>
-          <input class="profile-field__input" type="text" data-profile-field="location" placeholder="Berlin · moving to Vienna in autumn" autocomplete="off" />
-        </label>
-        <label class="profile-field">
-          <span class="profile-field__label">Why you're learning German</span>
-          <input class="profile-field__input" type="text" data-profile-field="goals" placeholder="work · partner's family · exam in spring" autocomplete="off" />
-        </label>
-
-        <div class="profile-field">
-          <span class="profile-field__label">Want to practice</span>
-          <div class="weak-area-grid" id="weak-area-grid"></div>
-        </div>
-      </section>
-
-      <!-- TAB: Family =================================================== -->
-      <section class="settings-pane" data-pane="family" role="tabpanel" hidden>
-        <p class="settings-pane__hint">Each member has their own level, saved words, streak, and personalisation.</p>
-        <div class="profile-switcher" id="profile-switcher" role="radiogroup" aria-label="Select profile"></div>
-        <div class="settings-pane__divider"></div>
-        <div class="family-actions">
-          <button type="button" class="family-actions__delete" id="profile-delete" hidden>Remove current profile</button>
-        </div>
-      </section>
-
-      <!-- TAB: Reading ================================================== -->
-      <section class="settings-pane" data-pane="reading" role="tabpanel" hidden>
+      <!-- Single Reading pane — settings is now lean. Personal context lives
+           in its own Journal view (top-right tab). -->
+      <section class="settings-pane settings-pane--solo" data-pane="reading" role="tabpanel">
         <div class="settings-row settings-row--inline">
           <span class="settings-row__label">Level</span>
           <div class="dropdown" id="dd-level"></div>
@@ -231,6 +146,7 @@
       <button type="button" class="topbar__view" data-view="read" aria-pressed="true">Read</button>
       <button type="button" class="topbar__view" data-view="chat" aria-pressed="false">Chat</button>
       <button type="button" class="topbar__view" data-view="progress" aria-pressed="false">Progress</button>
+      <button type="button" class="topbar__view" data-view="journal" aria-pressed="false">Journal</button>
     </div>
   </header>
 
@@ -378,6 +294,59 @@
       <div class="reader" id="view-progress" hidden>
         <div class="reader__inner" id="progress-host">
           <!-- progress dashboard rendered here -->
+        </div>
+      </div>
+
+      <!-- Journal — personal context, written like a notebook page -->
+      <div class="journal" id="view-journal" hidden>
+        <div class="journal__inner">
+
+          <!-- Hero: avatar + name -->
+          <div class="journal__hero">
+            <button type="button" class="journal__avatar" id="journal-avatar" aria-label="Change photo">
+              <span class="journal__avatar-initial" id="journal-avatar-initial">U</span>
+              <span class="journal__avatar-edit" aria-hidden="true">
+                <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 11.5L11 2.5l2.5 2.5L4.5 14H2v-2.5z"/><path d="M9 4.5l2.5 2.5"/>
+                </svg>
+              </span>
+            </button>
+            <input type="file" id="journal-avatar-input" accept="image/*" hidden />
+            <div class="journal__name-row">
+              <input class="journal__name" type="text" data-profile-field="name" placeholder="Your name" autocomplete="off" />
+              <div class="journal__meta">
+                <input class="journal__meta-input journal__meta-input--age" type="text" data-profile-field="age" placeholder="age" inputmode="numeric" autocomplete="off" />
+                <span class="journal__meta-dot" aria-hidden="true">·</span>
+                <input class="journal__meta-input journal__meta-input--role" type="text" data-profile-field="occupation" placeholder="what you do" autocomplete="off" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Family ribbon — switch / add / remove members -->
+          <div class="journal__family" id="journal-family"></div>
+
+          <!-- Free-form sections — each prompts a paragraph -->
+          <section class="journal__section">
+            <p class="journal__prompt">A bit about you</p>
+            <textarea class="journal__textarea" data-profile-field="hobbies" rows="2" placeholder="hobbies, things you're into, what fills your week…"></textarea>
+          </section>
+
+          <section class="journal__section">
+            <p class="journal__prompt">Where you are, or where you're heading</p>
+            <textarea class="journal__textarea" data-profile-field="location" rows="2" placeholder="city, neighbourhood, plans, anywhere on your mind…"></textarea>
+          </section>
+
+          <section class="journal__section">
+            <p class="journal__prompt">Why you're learning German</p>
+            <textarea class="journal__textarea" data-profile-field="goals" rows="2" placeholder="what pulled you in — work, family, travel, exam, the language itself…"></textarea>
+          </section>
+
+          <section class="journal__section">
+            <p class="journal__prompt">What you want to get better at</p>
+            <textarea class="journal__textarea" data-profile-field="weakAreas" rows="3" placeholder="the parts that still trip you up — case endings, sounding natural, small talk, anything specific. Write it like you'd tell a tutor."></textarea>
+          </section>
+
+          <p class="journal__footnote" id="journal-footnote">The more honest you are, the more your texts will actually feel like your life.</p>
         </div>
       </div>
     </main>

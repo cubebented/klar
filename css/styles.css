@@ -599,6 +599,261 @@
       color: var(--color-text);
     }
 
+    /* ============================================================
+       JOURNAL — full-page personal context, written like a notebook
+       ============================================================ */
+    .journal {
+      padding: clamp(60px, 8vw, 100px) clamp(20px, 5vw, 56px) var(--s-12);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .journal[hidden] { display: none; }
+    .journal__inner {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--s-6);
+    }
+
+    /* Hero row: avatar + name + meta */
+    .journal__hero {
+      display: flex;
+      align-items: center;
+      gap: var(--s-4);
+    }
+    .journal__avatar {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background-color: var(--color-surface-high);
+      background-size: cover;
+      background-position: center;
+      border: 0;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 200ms ease-out;
+    }
+    .journal__avatar:hover { transform: scale(1.03); }
+    .journal__avatar-initial {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--color-text-strong);
+      letter-spacing: 0.02em;
+    }
+    .journal__avatar--has-photo .journal__avatar-initial { display: none; }
+    .journal__avatar-edit {
+      position: absolute;
+      right: -2px; bottom: -2px;
+      width: 22px; height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--color-text-strong);
+      color: var(--color-bg);
+      border: 2px solid var(--color-bg);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .journal__name-row {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .journal__name {
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      width: 100%;
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      color: var(--color-text-strong);
+      outline: none;
+    }
+    .journal__name::placeholder { color: var(--color-text-faint); }
+    .journal__meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      color: var(--color-text-muted);
+    }
+    .journal__meta-input {
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      font: inherit;
+      color: var(--color-text-secondary);
+      outline: none;
+      min-width: 0;
+    }
+    .journal__meta-input::placeholder { color: var(--color-text-faint); }
+    .journal__meta-input--age { width: 3em; }
+    .journal__meta-input--role { flex: 1; min-width: 8em; }
+    .journal__meta-dot { color: var(--color-text-faint); }
+
+    /* Family ribbon — subtle horizontal row */
+    .journal__family {
+      display: flex;
+      flex-direction: column;
+      gap: var(--s-2);
+    }
+    .journal__family-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .journal__member {
+      appearance: none;
+      -webkit-appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 10px 5px 5px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      font-family: var(--font-display);
+      font-size: 12.5px;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+    }
+    .journal__member:hover {
+      color: var(--color-text-strong);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+    .journal__member.is-active {
+      background: var(--color-text-strong);
+      color: var(--color-bg);
+      border-color: var(--color-text-strong);
+    }
+    .journal__member-avatar {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background-color: var(--color-surface-high);
+      background-size: cover;
+      background-position: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .journal__member-avatar--initial {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-strong);
+    }
+    .journal__member.is-active .journal__member-avatar--initial { color: var(--color-bg); }
+    .journal__member-name { letter-spacing: 0; }
+    .journal__member-add {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 32px; height: 32px;
+      background: transparent;
+      border: 1px dashed rgba(255, 255, 255, 0.18);
+      border-radius: 50%;
+      color: var(--color-text-muted);
+      font-family: var(--font-display);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      transition: color 150ms ease-out, border-color 150ms ease-out;
+    }
+    .journal__member-add:hover {
+      color: var(--color-text-strong);
+      border-color: rgba(255, 255, 255, 0.30);
+    }
+    .journal__member-remove {
+      align-self: flex-start;
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      border: 0;
+      padding: 4px 0;
+      font-family: var(--font-display);
+      font-size: 11.5px;
+      color: rgba(255, 130, 130, 0.75);
+      cursor: pointer;
+      letter-spacing: 0.005em;
+    }
+    .journal__member-remove:hover { color: rgba(255, 160, 160, 1); text-decoration: underline; }
+
+    /* Sections — each prompts a free-form paragraph */
+    .journal__section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .journal__prompt {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+    }
+    .journal__textarea {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      padding: 10px 12px;
+      background: transparent;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      font-family: var(--font-display);
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--color-text-strong);
+      outline: none;
+      resize: vertical;
+      min-height: 56px;
+      transition: border-color 150ms ease-out, background-color 150ms ease-out;
+    }
+    .journal__textarea::placeholder { color: var(--color-text-faint); }
+    .journal__textarea:focus {
+      border-color: rgba(255, 255, 255, 0.20);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .journal__footnote {
+      margin: 0;
+      padding-top: var(--s-3);
+      font-family: var(--font-display);
+      font-size: 12px;
+      color: var(--color-text-faint);
+      text-align: center;
+      letter-spacing: 0;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 540px) {
+      .journal { padding: clamp(60px, 14vw, 80px) var(--s-4) var(--s-8); }
+      .journal__inner { gap: var(--s-5); }
+      .journal__name { font-size: 22px; }
+      .journal__textarea { font-size: 16px; }  /* iOS: prevent zoom on focus */
+      .journal__avatar { width: 56px; height: 56px; }
+    }
+
     /* settings tabs ===================================================== */
     .settings-tabs {
       flex-shrink: 0;
@@ -795,6 +1050,7 @@
       .profile-grid { grid-template-columns: 1fr; }
       .settings-row--inline { grid-template-columns: 1fr; }
     }
+
     .settings-row {
       display: flex;
       flex-direction: column;
@@ -4737,17 +4993,41 @@
         padding: 8px 14px;
       }
 
-      /* Settings modal: bottom-sheet style on phones */
+      /* Settings modal on phones: compact centered card (now that the modal
+         only holds reading prefs — 5 rows). Personal context lives in the
+         Journal view, so settings doesn't need to fill the whole screen. */
       .settings-modal {
-        align-items: flex-end;
-        padding: 0;
+        align-items: center;
+        padding: var(--s-4);
       }
       .settings-modal__panel {
-        max-height: 88vh;
-        border-radius: 16px 16px 0 0;
+        max-height: min(580px, 88vh);
+        height: auto;
+        border-radius: 14px;
+        border: 1px solid var(--color-border-strong);
         width: 100%;
         max-width: 100%;
       }
+      /* iOS auto-zooms input/textarea on focus if font-size < 16px.
+         Bump everything inside settings to 16px to suppress the zoom-jump. */
+      .settings-modal__panel .profile-field__input,
+      .settings-modal__panel .profile-hero__name,
+      .settings-modal__panel .dropdown__btn,
+      .settings-modal__panel .dropdown__option,
+      .chat-reply__textarea {
+        font-size: 16px;
+      }
+      /* Friendlier touch targets for chips & tabs */
+      .profile-chip { padding: 9px 14px; }
+      .weak-area-chip { padding: 8px 12px; }
+      .settings-tab { padding: 13px 4px; }
+      .settings-tab span { font-size: 12.5px; }
+      /* Profile hero a bit more compact on small screens */
+      .profile-hero__avatar-wrap, .profile-hero__avatar { width: 56px; height: 56px; }
+      .profile-hero__name { font-size: 17px; }
+      .profile-hero { gap: var(--s-3); }
+      /* Slightly bigger word context menu items for touch */
+      .ctx-menu__item { padding: 11px 12px; font-size: 13.5px; }
 
       /* Welcome screen: tighter inner padding */
       .welcome__inner {
