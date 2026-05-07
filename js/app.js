@@ -1964,11 +1964,22 @@ Only include fields in "extracted" that you actually learned this turn. Existing
         const wrap = document.createElement('div');
         wrap.className = 'custom-input';
         wrap.innerHTML =
-          '<label class="custom-input__label" for="custom-text-input">Paste your own German text</label>' +
+          '<div class="custom-input__head">' +
+            '<label class="custom-input__label" for="custom-text-input">Paste, type, or photograph German text</label>' +
+            '<button type="button" class="custom-input__photo" id="custom-photo-btn" title="Take or upload a photo">' +
+              '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<rect x="1.5" y="3.5" width="13" height="10" rx="1.5"/>' +
+                '<circle cx="8" cy="8.5" r="2.7"/>' +
+                '<path d="M5.5 3.5l1-1.5h3l1 1.5"/>' +
+              '</svg>' +
+              '<span>Photo</span>' +
+            '</button>' +
+            '<input type="file" id="custom-photo-input" accept="image/*" capture="environment" hidden />' +
+          '</div>' +
           '<textarea class="custom-input__field" id="custom-text-input" rows="8"' +
           ' placeholder="Füge deinen deutschen Text hier ein…"' +
           ' autocomplete="off" spellcheck="false"></textarea>' +
-          '<p class="custom-input__hint">⌘ / Ctrl + Enter to read</p>';
+          '<p class="custom-input__hint" id="custom-input-hint">⌘ / Ctrl + Enter to read</p>';
 
         cardBody.innerHTML = '';
         cardBody.appendChild(wrap);
@@ -1978,15 +1989,17 @@ Only include fields in "extracted" that you actually learned this turn. Existing
           '<button type="button" class="btn-primary" id="custom-submit">Read this text</button>' +
           '</div>';
 
-        const ta = document.getElementById('custom-text-input');
-        const btn = document.getElementById('custom-submit');
+        const ta       = document.getElementById('custom-text-input');
+        const btn      = document.getElementById('custom-submit');
+        const photoBtn = document.getElementById('custom-photo-btn');
+        const photoIn  = document.getElementById('custom-photo-input');
+        const hint     = document.getElementById('custom-input-hint');
 
         const submit = async () => {
           const text = (ta.value || '').trim();
           if (!text) return;
 
           state.loading = true;
-          // show skeleton while the glossary API call runs
           renderLoading();
 
           try {
@@ -2012,7 +2025,100 @@ Only include fields in "extracted" that you actually learned this turn. Existing
           }
         });
 
+        // ── Photo → OCR ────────────────────────────────────────────
+        if (photoBtn && photoIn) {
+          photoBtn.addEventListener('click', () => photoIn.click());
+          photoIn.addEventListener('change', async () => {
+            const file = photoIn.files && photoIn.files[0];
+            if (!file) return;
+            if (!/^image\//.test(file.type)) {
+              alert('Please pick an image file.');
+              return;
+            }
+            try {
+              await runOcrIntoField(file, ta, photoBtn, hint);
+            } catch (err) {
+              console.error(err);
+              if (hint) hint.textContent = 'Could not read that image — try a clearer shot.';
+              setPhotoBtnLoading(photoBtn, false);
+            }
+            photoIn.value = '';
+          });
+        }
+
         requestAnimationFrame(() => ta && ta.focus({ preventScroll: true }));
+      }
+
+      // ─────────────── OCR (lazy-loaded Tesseract.js) ───────────────
+      // Load the WASM bundle only on first use so the rest of the app
+      // stays small. We use the German trained data (lang: 'deu') so
+      // umlauts and ß come through correctly.
+      let __tesseractLoading = null;
+      function loadTesseract() {
+        if (window.Tesseract) return Promise.resolve(window.Tesseract);
+        if (__tesseractLoading) return __tesseractLoading;
+        __tesseractLoading = new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';
+          s.async = true;
+          s.onload = () => {
+            if (window.Tesseract) resolve(window.Tesseract);
+            else reject(new Error('Tesseract failed to register on window'));
+          };
+          s.onerror = () => reject(new Error('Failed to load OCR library'));
+          document.head.appendChild(s);
+        });
+        return __tesseractLoading;
+      }
+
+      function setPhotoBtnLoading(btn, loading) {
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.classList.toggle('is-loading', loading);
+        const span = btn.querySelector('span');
+        if (span && loading) span.textContent = 'Reading…';
+        else if (span) span.textContent = 'Photo';
+      }
+
+      async function runOcrIntoField(file, textarea, photoBtn, hint) {
+        setPhotoBtnLoading(photoBtn, true);
+        if (hint) hint.textContent = 'Loading the German reader… first time may take a sec.';
+
+        const Tesseract = await loadTesseract();
+
+        if (hint) hint.textContent = 'Reading the photo…';
+
+        // Pass the File directly — Tesseract.js handles File/Blob/dataURL
+        const result = await Tesseract.recognize(file, 'deu', {
+          logger: (m) => {
+            if (m && m.status === 'recognizing text' && hint) {
+              const pct = Math.round((m.progress || 0) * 100);
+              hint.textContent = `Reading the photo… ${pct}%`;
+            }
+          },
+        });
+
+        const raw = (result?.data?.text || '').trim();
+        // Light cleanup: collapse hard-wrapped lines into paragraphs while
+        // preserving real paragraph breaks (double newlines).
+        const cleaned = raw
+          .replace(/[ \t]+\n/g, '\n')
+          .replace(/(?<!\n)\n(?!\n)/g, ' ')   // single newline → space
+          .replace(/\n{2,}/g, '\n\n')
+          .replace(/[ \t]{2,}/g, ' ')
+          .trim();
+
+        if (cleaned) {
+          // Append (don't overwrite) so users can stack multiple photos
+          textarea.value = textarea.value
+            ? textarea.value.replace(/\s+$/, '') + '\n\n' + cleaned
+            : cleaned;
+          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          if (hint) hint.textContent = 'Got it. Tweak if needed, then hit "Read this text".';
+        } else {
+          if (hint) hint.textContent = "Couldn't find any text. Try a closer or sharper photo.";
+        }
+        setPhotoBtnLoading(photoBtn, false);
       }
       function renderEmpty() {
         fillFromTpl(cardBody, 'tpl-empty');

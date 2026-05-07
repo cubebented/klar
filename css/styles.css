@@ -1383,6 +1383,12 @@
       gap: var(--s-2);
       padding: var(--s-2) 0 var(--s-4);
     }
+    .custom-input__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--s-3);
+    }
     .custom-input__label {
       font-family: var(--font-display);
       font-size: 11.5px;
@@ -1390,6 +1396,36 @@
       color: var(--color-text-secondary);
       letter-spacing: 0.05em;
       text-transform: uppercase;
+    }
+    .custom-input__photo {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px 6px 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--color-text);
+      border-radius: 999px;
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+    }
+    .custom-input__photo:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+    .custom-input__photo:active { transform: translateY(1px); }
+    .custom-input__photo:disabled,
+    .custom-input__photo.is-loading {
+      opacity: 0.7;
+      cursor: progress;
+    }
+    .custom-input__photo.is-loading svg { animation: photo-spin 1s linear infinite; }
+    @keyframes photo-spin {
+      from { transform: rotate(0); }
+      to   { transform: rotate(360deg); }
     }
     .custom-input__field {
       appearance: none;
