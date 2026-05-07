@@ -14,6 +14,7 @@
         school: 'School question',
         story: 'Short story',
         chat: 'Chat back',
+        custom: 'Custom text',
       };
 
       const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1'];
@@ -77,7 +78,7 @@
         },
       };
 
-      const MODES = ['daily', 'school', 'story', 'chat'];
+      const MODES = ['daily', 'school', 'story', 'chat', 'custom'];
 
       // Available "weak area" tags the user can pick in their profile.
       // Used to subtly bias generation toward grammar they want to practice.
@@ -1920,6 +1921,75 @@ Only include fields in "extracted" that you actually learned this turn. Existing
         target.appendChild(tpl.content.cloneNode(true));
       }
 
+      // ── Custom text paste UI ─────────────────────────────
+      // Shown instead of the loading + API call when mode === 'custom'.
+      // The user pastes German text; we run fillGlossary to get hover
+      // translations, then hand it to renderArticle like any generated text.
+      function renderCustomInput() {
+        viewRead.classList.remove('reader--empty');
+        requestAnimationFrame(updateAllIndicators);
+        if (typeof stopSpeaking === 'function') stopSpeaking();
+        cardTimerSlot.innerHTML = '';
+
+        const sub = getCurrentSublevel(state.level);
+        cardLevel.textContent = state.level;
+        cardSublevel.textContent = sub.name;
+        cardSublevel.classList.toggle('sublevel-pill--max', sub.key === 'max');
+        cardMode.textContent = 'Custom text';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'custom-input';
+        wrap.innerHTML =
+          '<label class="custom-input__label" for="custom-text-input">Paste your own German text</label>' +
+          '<textarea class="custom-input__field" id="custom-text-input" rows="8"' +
+          ' placeholder="Füge deinen deutschen Text hier ein…"' +
+          ' autocomplete="off" spellcheck="false"></textarea>' +
+          '<p class="custom-input__hint">⌘ / Ctrl + Enter to read</p>';
+
+        cardBody.innerHTML = '';
+        cardBody.appendChild(wrap);
+
+        cardFoot.innerHTML =
+          '<div class="next-row">' +
+          '<button type="button" class="btn-primary" id="custom-submit">Read this text</button>' +
+          '</div>';
+
+        const ta = document.getElementById('custom-text-input');
+        const btn = document.getElementById('custom-submit');
+
+        const submit = async () => {
+          const text = (ta.value || '').trim();
+          if (!text) return;
+
+          state.loading = true;
+          // show skeleton while the glossary API call runs
+          renderLoading();
+
+          try {
+            const data = { text, glossary: {}, title: 'Custom text', textEnglish: '' };
+            const filled = await fillGlossary(data);
+            state.lastData = filled;
+            state.hasGenerated = true;
+            renderArticle(filled);
+            renderStats();
+          } catch (err) {
+            console.error(err);
+            renderError(err);
+          } finally {
+            state.loading = false;
+          }
+        };
+
+        btn.addEventListener('click', submit);
+        ta.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          }
+        });
+
+        requestAnimationFrame(() => ta && ta.focus({ preventScroll: true }));
+      }
       function renderEmpty() {
         fillFromTpl(cardBody, 'tpl-empty');
         fillFromTpl(cardFoot, 'tpl-generate-btn');
@@ -2421,6 +2491,12 @@ Only include fields in "extracted" that you actually learned this turn. Existing
           syncPressed('view', 'read');
           viewRead.hidden = false;
           viewProgress.hidden = true;
+        }
+
+        // Custom mode: show paste textarea instead of calling the AI
+        if (state.mode === 'custom') {
+          renderCustomInput();
+          return;
         }
 
         state.loading = true;
