@@ -868,6 +868,30 @@
         document.body.classList.remove('modal-open');
       }
       settingsBtn.addEventListener('click', openSettings);
+
+      // ─────────────── Sidebar collapse ───────────────
+      // Toggle the sidebar in/out. State persists across reloads via
+      // localStorage so the user's last preference sticks.
+      (() => {
+        const SIDEBAR_KEY = 'klar:sidebar-collapsed';
+        const collapseBtn = document.getElementById('sidebar-collapse');
+        const reopenBtn   = document.getElementById('sidebar-reopen');
+        if (!collapseBtn || !reopenBtn) return;
+
+        function setCollapsed(collapsed) {
+          document.body.classList.toggle('sidebar-collapsed', collapsed);
+          reopenBtn.hidden = !collapsed;
+          try { safeStore.set(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (_) {}
+        }
+
+        // Restore saved state
+        let saved = '0';
+        try { saved = safeStore.get(SIDEBAR_KEY) || '0'; } catch (_) {}
+        if (saved === '1') setCollapsed(true);
+
+        collapseBtn.addEventListener('click', () => setCollapsed(true));
+        reopenBtn.addEventListener('click', () => setCollapsed(false));
+      })();
       settingsClose.addEventListener('click', closeSettings);
       settingsBackdrop.addEventListener('click', closeSettings);
       document.addEventListener('keydown', (e) => {
