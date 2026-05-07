@@ -1966,23 +1966,27 @@ Only include fields in "extracted" that you actually learned this turn. Existing
         wrap.innerHTML =
           '<div class="custom-input__head">' +
             '<label class="custom-input__label" for="custom-text-input">Paste, type, or photograph German text</label>' +
-            '<button type="button" class="custom-input__photo" id="custom-photo-btn" title="Take or upload a photo">' +
-              '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-                '<rect x="1.5" y="3.5" width="13" height="10" rx="1.5"/>' +
-                '<circle cx="8" cy="8.5" r="2.7"/>' +
-                '<path d="M5.5 3.5l1-1.5h3l1 1.5"/>' +
-              '</svg>' +
-              '<span>Photo</span>' +
-            '</button>' +
+            '<div class="custom-input__head-actions">' +
+              '<button type="button" class="custom-input__photo" id="custom-photo-btn" title="Take or upload a photo">' +
+                '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                  '<rect x="1.5" y="3.5" width="13" height="10" rx="1.5"/>' +
+                  '<circle cx="8" cy="8.5" r="2.7"/>' +
+                  '<path d="M5.5 3.5l1-1.5h3l1 1.5"/>' +
+                '</svg>' +
+                '<span>Photo</span>' +
+              '</button>' +
+            '</div>' +
             '<input type="file" id="custom-photo-input" accept="image/*" capture="environment" hidden />' +
           '</div>' +
           '<textarea class="custom-input__field" id="custom-text-input" rows="8"' +
           ' placeholder="Füge deinen deutschen Text hier ein…"' +
           ' autocomplete="off" spellcheck="false"></textarea>' +
-          '<p class="custom-input__hint" id="custom-input-hint">⌘ / Ctrl + Enter to read</p>';
+          '<p class="custom-input__hint" id="custom-input-hint">⌘ / Ctrl + Enter to read</p>' +
+          '<div class="lib" id="custom-library"></div>';
 
         cardBody.innerHTML = '';
         cardBody.appendChild(wrap);
+        renderCustomLibrary();
 
         cardFoot.innerHTML =
           '<div class="next-row">' +
@@ -2009,6 +2013,8 @@ Only include fields in "extracted" that you actually learned this turn. Existing
             state.hasGenerated = true;
             renderArticle(filled);
             renderStats();
+            // Persist to the library so the user can re-open it later
+            saveCustomText(text);
           } catch (err) {
             console.error(err);
             renderError(err);
@@ -2047,6 +2053,197 @@ Only include fields in "extracted" that you actually learned this turn. Existing
         }
 
         requestAnimationFrame(() => ta && ta.focus({ preventScroll: true }));
+      }
+
+      // ─────────────── Custom-text Library ───────────────
+      // Per-profile saved texts. Each entry: { id, title, text, folder, savedAt }.
+      // Stored on the active profile object so each family member has their own.
+      function getCustomTexts() {
+        const p = getActiveProfile();
+        if (!p) return [];
+        if (!Array.isArray(p.customTexts)) p.customTexts = [];
+        return p.customTexts;
+      }
+
+      function deriveTitle(text) {
+        const t = (text || '').trim();
+        if (!t) return 'Untitled';
+        // First sentence-ish chunk, or first ~40 chars
+        const firstLine = t.split(/\n/).find((l) => l.trim()) || t;
+        const stripped = firstLine.replace(/\s+/g, ' ').trim();
+        if (stripped.length <= 42) return stripped;
+        return stripped.slice(0, 40).replace(/\s+\S*$/, '') + '…';
+      }
+
+      function saveCustomText(text) {
+        const p = getActiveProfile();
+        if (!p || !text || !text.trim()) return;
+        if (!Array.isArray(p.customTexts)) p.customTexts = [];
+
+        // Dedupe: if the exact text already exists, just touch its savedAt
+        const existing = p.customTexts.find((e) => e.text.trim() === text.trim());
+        if (existing) {
+          existing.savedAt = Date.now();
+        } else {
+          p.customTexts.unshift({
+            id: 'ct_' + Math.random().toString(36).slice(2, 10),
+            title: deriveTitle(text),
+            text: text.trim(),
+            folder: '',
+            savedAt: Date.now(),
+          });
+          // Cap at 100 entries per profile to keep localStorage healthy
+          if (p.customTexts.length > 100) p.customTexts.length = 100;
+        }
+        persistProfiles();
+      }
+
+      function deleteCustomText(id) {
+        const p = getActiveProfile();
+        if (!p || !Array.isArray(p.customTexts)) return;
+        p.customTexts = p.customTexts.filter((e) => e.id !== id);
+        persistProfiles();
+      }
+
+      function updateCustomText(id, patch) {
+        const p = getActiveProfile();
+        if (!p || !Array.isArray(p.customTexts)) return;
+        const e = p.customTexts.find((x) => x.id === id);
+        if (!e) return;
+        Object.assign(e, patch);
+        persistProfiles();
+      }
+
+      function relativeTime(ts) {
+        const diff = Date.now() - ts;
+        const s = Math.floor(diff / 1000);
+        if (s < 60) return 'just now';
+        const m = Math.floor(s / 60);
+        if (m < 60) return m + 'm ago';
+        const h = Math.floor(m / 60);
+        if (h < 24) return h + 'h ago';
+        const d = Math.floor(h / 24);
+        if (d < 7) return d + 'd ago';
+        const w = Math.floor(d / 7);
+        if (w < 5) return w + 'w ago';
+        return new Date(ts).toLocaleDateString();
+      }
+
+      function renderCustomLibrary() {
+        const root = document.getElementById('custom-library');
+        if (!root) return;
+        const entries = getCustomTexts();
+
+        if (entries.length === 0) {
+          root.innerHTML = '<p class="lib__empty">No saved texts yet. Anything you read here is automatically saved so you can come back to it.</p>';
+          return;
+        }
+
+        // Group by folder. Empty folder string → "Untagged".
+        const groups = {};
+        for (const e of entries) {
+          const key = (e.folder || '').trim() || 'Untagged';
+          (groups[key] = groups[key] || []).push(e);
+        }
+        // Sort group keys so "Untagged" sits last
+        const orderedKeys = Object.keys(groups).sort((a, b) => {
+          if (a === 'Untagged') return 1;
+          if (b === 'Untagged') return -1;
+          return a.localeCompare(b);
+        });
+
+        const groupHtml = orderedKeys.map((key) => {
+          const items = groups[key]
+            .slice()
+            .sort((a, b) => b.savedAt - a.savedAt)
+            .map((e) => {
+              const folderHint = e.folder ? '' : 'Untagged';
+              return (
+                '<li class="lib__item" data-id="' + escapeAttr(e.id) + '">' +
+                  '<button type="button" class="lib__open" data-act="open" title="Open this text">' +
+                    '<span class="lib__title">' + escapeHtml(e.title || 'Untitled') + '</span>' +
+                    '<span class="lib__meta">' + escapeHtml(relativeTime(e.savedAt)) + '</span>' +
+                  '</button>' +
+                  '<button type="button" class="lib__btn lib__btn--folder" data-act="folder" title="Move to folder">' +
+                    '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                      '<path d="M2 5.5v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5h-3.5a1 1 0 0 0-1 1z"/>' +
+                    '</svg>' +
+                  '</button>' +
+                  '<button type="button" class="lib__btn lib__btn--del" data-act="delete" title="Delete">' +
+                    '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                      '<path d="M3 4.5h10M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5 4.5l.5 8a1 1 0 0 0 1 .9h3a1 1 0 0 0 1-.9l.5-8"/>' +
+                    '</svg>' +
+                  '</button>' +
+                '</li>'
+              );
+            }).join('');
+          return (
+            '<section class="lib__group" data-folder="' + escapeAttr(key) + '">' +
+              '<header class="lib__group-head">' +
+                '<span class="lib__folder">' + escapeHtml(key) + '</span>' +
+                '<span class="lib__count">' + groups[key].length + '</span>' +
+              '</header>' +
+              '<ul class="lib__list">' + items + '</ul>' +
+            '</section>'
+          );
+        }).join('');
+
+        root.innerHTML =
+          '<div class="lib__head">' +
+            '<button type="button" class="lib__toggle" id="lib-toggle" aria-expanded="true">' +
+              '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>' +
+              '<span>Library</span>' +
+              '<em>' + entries.length + '</em>' +
+            '</button>' +
+          '</div>' +
+          '<div class="lib__body">' + groupHtml + '</div>';
+
+        // Wire interactions
+        const body = root.querySelector('.lib__body');
+        const toggleBtn = root.querySelector('#lib-toggle');
+        if (toggleBtn && body) {
+          toggleBtn.addEventListener('click', () => {
+            const open = toggleBtn.getAttribute('aria-expanded') !== 'false';
+            toggleBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+            body.classList.toggle('lib__body--collapsed', open);
+          });
+        }
+
+        root.addEventListener('click', (e) => {
+          const li = e.target.closest('.lib__item');
+          if (!li) return;
+          const id = li.dataset.id;
+          const actBtn = e.target.closest('[data-act]');
+          if (!actBtn) return;
+          const act = actBtn.dataset.act;
+
+          if (act === 'open') {
+            const entries = getCustomTexts();
+            const entry = entries.find((x) => x.id === id);
+            if (!entry) return;
+            const ta = document.getElementById('custom-text-input');
+            if (ta) {
+              ta.value = entry.text;
+              ta.dispatchEvent(new Event('input', { bubbles: true }));
+              const submitBtn = document.getElementById('custom-submit');
+              if (submitBtn) submitBtn.click();
+            }
+          } else if (act === 'delete') {
+            if (!window.confirm('Delete this saved text?')) return;
+            deleteCustomText(id);
+            renderCustomLibrary();
+          } else if (act === 'folder') {
+            const entry = getCustomTexts().find((x) => x.id === id);
+            const current = (entry && entry.folder) || '';
+            const folder = window.prompt('Folder name (empty for untagged):', current);
+            if (folder === null) return;
+            updateCustomText(id, { folder: folder.trim() });
+            renderCustomLibrary();
+          }
+        });
+        // renderCustomLibrary replaces innerHTML on every change, so old
+        // handlers are GC'd along with the removed nodes — no need for
+        // manual cleanup or { once: true }.
       }
 
       // ─────────────── OCR (lazy-loaded Tesseract.js) ───────────────
