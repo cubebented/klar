@@ -105,14 +105,11 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 1fr;   /* sidebar removed — reader fills the page */
+      grid-template-columns: var(--sidebar-w) 1fr;
       min-height: 100vh;
     }
 
-    /* sidebar — removed from layout entirely. Kept in DOM so syncPressed can
-       update aria-pressed on its mode buttons, but never visible. */
     .sidebar {
-      display: none !important;
       background: var(--color-bg-soft);
       border-right: 1px solid var(--color-border);
       padding: var(--s-6) var(--s-5);
